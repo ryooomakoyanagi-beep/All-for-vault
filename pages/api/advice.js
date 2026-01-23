@@ -132,18 +132,19 @@ export default async function handler(req, res) {
       .filter(sheet => sheet !== '')
       .join('\n\n')
       
-      // Limit glossary data to 2500 characters to stay within token limits
-      if (glossaryData.length > 2500) {
-        glossaryData = glossaryData.substring(0, 2500) + '\n...（以下省略）'
+      // Limit glossary data to 2000 characters to make room for document
+      if (glossaryData.length > 2000) {
+        glossaryData = glossaryData.substring(0, 2000) + '\n...（以下省略）'
       }
       
       console.log(`Loaded glossary from Excel (${excelData.length} sheets, ${glossaryData.length} chars)`)
       
-      // Load Word document
+      // Load Word document - prioritize this content
       const fullDocumentText = await loadWordFile('最終ボウタカ.docx')
-      // Limit to 3000 characters to stay within token limits
-      if (fullDocumentText.length > 3000) {
-        documentText = fullDocumentText.substring(0, 3000) + '\n...（以下省略）'
+      // Increase limit to 4000 characters to include more content from this important document
+      if (fullDocumentText.length > 4000) {
+        // Take from the beginning to preserve structure
+        documentText = fullDocumentText.substring(0, 4000) + '\n...（以下省略）'
       } else {
         documentText = fullDocumentText
       }
@@ -168,15 +169,16 @@ export default async function handler(req, res) {
     // Build system prompt with reference materials
     let systemPrompt = 'あなたは棒高跳の専門コーチです。技術的な質問に対して、専門的で実践的なアドバイスを提供してください。\n\n'
 
-    if (glossaryData) {
-      systemPrompt += '【用語集】\n以下の用語集を参照して回答してください。\n' + glossaryData + '\n\n'
-    }
-
+    // Prioritize the main document (最終ボウタカ.docx) as it contains comprehensive technical content
     if (documentText) {
-      systemPrompt += '【参考資料】\n以下の資料を参照して回答してください。\n' + documentText + '\n\n'
+      systemPrompt += '【主要参考資料 - 重要】\n以下の資料は棒高跳の技術的な内容を包括的に説明しています。この資料を優先的に参照し、詳細な技術アドバイスを提供してください。\n' + documentText + '\n\n'
     }
 
-    systemPrompt += '重要: 上記の用語集と参考資料に基づいて回答してください。ウェブ検索は行わず、提供された資料のみを使用してください。'
+    if (glossaryData) {
+      systemPrompt += '【用語集】\n以下の用語集を補足資料として参照してください。\n' + glossaryData + '\n\n'
+    }
+
+    systemPrompt += '重要: 上記の主要参考資料（最終ボウタカ.docx）を優先的に参照し、用語集を補足として活用してください。両方の資料の内容を統合して、包括的で実践的なアドバイスを提供してください。ウェブ検索は行わず、提供された資料に基づいて回答してください。'
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4',
@@ -191,7 +193,7 @@ export default async function handler(req, res) {
         }
       ],
       temperature: 0.7,
-      max_tokens: 2000,
+      max_tokens: 2500,
     })
 
     const advice = completion.choices[0]?.message?.content || 'アドバイスを生成できませんでした'
