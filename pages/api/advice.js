@@ -10,10 +10,26 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
+// Base path for reference files
+const basePath = path.join(process.cwd(), 'data', 'reference')
+const getFilePath = (filename) => path.join(basePath, filename)
+
 // Helper function to load Excel file
 function loadExcelFile(filename) {
   try {
-    const filePath = path.join(process.cwd(), filename)
+    const filePath = getFilePath(filename)
+    console.log(`Loading Excel: ${filename}`)
+    console.log(`Resolved path: ${filePath}`)
+    console.log(`Current working directory: ${process.cwd()}`)
+    
+    if (!fs.existsSync(filePath)) {
+      const error = new Error(`File not found: ${filename}`)
+      error.fileName = filename
+      error.resolvedPath = filePath
+      error.cwd = process.cwd()
+      throw error
+    }
+    
     const workbook = XLSX.readFile(filePath)
     
     // Get all sheet names
@@ -33,6 +49,11 @@ function loadExcelFile(filename) {
     return allData
   } catch (error) {
     console.error(`Error loading Excel file ${filename}:`, error)
+    if (error.fileName) {
+      console.error(`  File name: ${error.fileName}`)
+      console.error(`  Resolved path: ${error.resolvedPath}`)
+      console.error(`  Current working directory: ${error.cwd}`)
+    }
     throw error
   }
 }
@@ -40,11 +61,28 @@ function loadExcelFile(filename) {
 // Helper function to load Word file
 async function loadWordFile(filename) {
   try {
-    const filePath = path.join(process.cwd(), filename)
+    const filePath = getFilePath(filename)
+    console.log(`Loading Word: ${filename}`)
+    console.log(`Resolved path: ${filePath}`)
+    console.log(`Current working directory: ${process.cwd()}`)
+    
+    if (!fs.existsSync(filePath)) {
+      const error = new Error(`File not found: ${filename}`)
+      error.fileName = filename
+      error.resolvedPath = filePath
+      error.cwd = process.cwd()
+      throw error
+    }
+    
     const result = await mammoth.extractRawText({ path: filePath })
     return result.value
   } catch (error) {
     console.error(`Error loading Word file ${filename}:`, error)
+    if (error.fileName) {
+      console.error(`  File name: ${error.fileName}`)
+      console.error(`  Resolved path: ${error.resolvedPath}`)
+      console.error(`  Current working directory: ${error.cwd}`)
+    }
     throw error
   }
 }
@@ -112,10 +150,19 @@ export default async function handler(req, res) {
       console.log(`Loaded document from Word (${fullDocumentText.length} -> ${documentText.length} characters)`)
     } catch (fileError) {
       console.error('Error loading reference files:', fileError)
-      return res.status(500).json({ 
+      const errorResponse = {
         error: '参考資料の読み込みに失敗しました。ファイルが存在するか確認してください。',
-        details: fileError.message 
-      })
+        details: fileError.message
+      }
+      if (fileError.fileName) {
+        errorResponse.fileName = fileError.fileName
+        errorResponse.resolvedPath = fileError.resolvedPath
+        errorResponse.cwd = fileError.cwd
+        console.error(`  Failed file: ${fileError.fileName}`)
+        console.error(`  Resolved path: ${fileError.resolvedPath}`)
+        console.error(`  Current working directory: ${fileError.cwd}`)
+      }
+      return res.status(500).json(errorResponse)
     }
 
     // Build system prompt with reference materials

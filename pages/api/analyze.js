@@ -4,10 +4,26 @@ import fs from 'fs'
 import path from 'path'
 import { parse } from 'csv-parse/sync'
 
+// Base path for reference files
+const basePath = path.join(process.cwd(), 'data', 'reference')
+const getFilePath = (filename) => path.join(basePath, filename)
+
 // Helper function to load and parse CSV file
 function loadCSVFile(filename) {
   try {
-    const filePath = path.join(process.cwd(), filename)
+    const filePath = getFilePath(filename)
+    console.log(`Loading CSV: ${filename}`)
+    console.log(`Resolved path: ${filePath}`)
+    console.log(`Current working directory: ${process.cwd()}`)
+    
+    if (!fs.existsSync(filePath)) {
+      const error = new Error(`File not found: ${filename}`)
+      error.fileName = filename
+      error.resolvedPath = filePath
+      error.cwd = process.cwd()
+      throw error
+    }
+    
     const fileContent = fs.readFileSync(filePath, 'utf-8')
     
     // Parse CSV with headers
@@ -20,6 +36,11 @@ function loadCSVFile(filename) {
     return records
   } catch (error) {
     console.error(`Error loading CSV file ${filename}:`, error)
+    if (error.fileName) {
+      console.error(`  File name: ${error.fileName}`)
+      console.error(`  Resolved path: ${error.resolvedPath}`)
+      console.error(`  Current working directory: ${error.cwd}`)
+    }
     throw error
   }
 }
@@ -145,10 +166,19 @@ export default async function handler(req, res) {
       console.log('Sample row from pole_resistance.csv:', poleResistanceData[0])
     } catch (csvError) {
       console.error('Error loading CSV files:', csvError)
-      return res.status(500).json({
+      const errorResponse = {
         error: 'CSVファイルの読み込みに失敗しました',
         details: csvError.message
-      })
+      }
+      if (csvError.fileName) {
+        errorResponse.fileName = csvError.fileName
+        errorResponse.resolvedPath = csvError.resolvedPath
+        errorResponse.cwd = csvError.cwd
+        console.error(`  Failed file: ${csvError.fileName}`)
+        console.error(`  Resolved path: ${csvError.resolvedPath}`)
+        console.error(`  Current working directory: ${csvError.cwd}`)
+      }
+      return res.status(500).json(errorResponse)
     }
 
     // Find recommended pole based on bend and RI

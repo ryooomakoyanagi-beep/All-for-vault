@@ -93,6 +93,21 @@ npm run dev
 - `mammoth` - Word文書（.docx）の読み取り
 - `tailwindcss` - CSSフレームワーク
 
+## ファイル構造
+
+### 参考資料ファイル
+
+参考資料ファイルは `data/reference/` ディレクトリに配置してください：
+
+- `dj_mid_chart.csv` - 中間マークチャート
+- `pole_resistance.csv` - ポール抵抗データ
+- `logic_bend_landing_matrix.xlsx` - 湾曲・着地マトリックス
+- `logic_takeoff_mid_matrix.xlsx` - 踏切・中間マークマトリックス
+- `最終ボウタカ.docx` - 参考資料（Word文書）
+- `ボウタカAI　用語集.xlsx` - 用語集（Excel）
+
+**重要**: これらのファイルは `data/reference/` ディレクトリに配置する必要があります。
+
 ## GitHubに公開する前に
 
 ### セキュリティチェック
@@ -110,26 +125,40 @@ npm run check:secrets
 
 ### 公開手順
 
-1. **Gitリポジトリの初期化（初回のみ）**
+1. **参考資料ファイルを移動**
+   ```bash
+   # data/reference/ ディレクトリを作成
+   mkdir -p data/reference
+   
+   # 参考資料ファイルを移動（Windows PowerShell）
+   Move-Item dj_mid_chart.csv data/reference/
+   Move-Item pole_resistance.csv data/reference/
+   Move-Item logic_bend_landing_matrix.xlsx data/reference/
+   Move-Item logic_takeoff_mid_matrix.xlsx data/reference/
+   Move-Item "最終ボウタカ.docx" data/reference/
+   Move-Item "ボウタカAI　用語集.xlsx" data/reference/
+   ```
+
+2. **Gitリポジトリの初期化（初回のみ）**
    ```bash
    git init
    git branch -M main
    ```
 
-2. **ファイルの追加とコミット**
+3. **ファイルの追加とコミット**
    ```bash
    git add .
    git commit -m "Initial commit"
    ```
 
-3. **GitHubリポジトリの作成と接続**
+4. **GitHubリポジトリの作成と接続**
    - GitHubで新しいリポジトリを作成
    - 以下のコマンドでリモートを追加（`YOUR_USERNAME`と`REPO_NAME`を置き換え）：
    ```bash
    git remote add origin https://github.com/YOUR_USERNAME/REPO_NAME.git
    ```
 
-4. **プッシュ**
+5. **プッシュ**
    ```bash
    git push -u origin main
    ```

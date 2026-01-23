@@ -39,6 +39,14 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# data files (feedback, etc.)
+# data files (feedback outputs only)
 data/*.jsonl
 data/*.json
+# Keep reference files tracked
+!data/reference/
+!data/reference/**
+
+# Windows junk
+desktop.ini
+Thumbs.db
+
