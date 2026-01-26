@@ -5,21 +5,27 @@ import Head from 'next/head'
 export default function AdminFeedback() {
   const router = useRouter()
   const [entries, setEntries] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false) // Changed to false - only show loading when actually fetching
   const [error, setError] = useState(null)
   const [filter, setFilter] = useState('all') // all, feature1, feature2
   const [password, setPassword] = useState('')
+  const [isAuthenticated, setIsAuthenticated] = useState(false) // Track if user has successfully authenticated
 
   useEffect(() => {
-    // Check if password is provided
+    // Check if password is provided in URL
     const urlPassword = router.query.password
-    if (urlPassword) {
+    if (urlPassword && !isAuthenticated) {
       setPassword(urlPassword)
       fetchFeedback(urlPassword)
     }
   }, [router.query])
 
   const fetchFeedback = async (pwd) => {
+    if (!pwd || pwd.trim() === '') {
+      setError('パスワードを入力してください')
+      return
+    }
+    
     setLoading(true)
     setError(null)
     try {
@@ -30,13 +36,19 @@ export default function AdminFeedback() {
       })
 
       if (!response.ok) {
-        throw new Error('認証に失敗しました')
+        if (response.status === 401) {
+          throw new Error('認証に失敗しました。パスワードを確認してください。')
+        }
+        throw new Error('フィードバックの取得に失敗しました')
       }
 
       const data = await response.json()
       setEntries(data.entries || [])
+      setIsAuthenticated(true) // Mark as authenticated on success
     } catch (err) {
       setError(err.message)
+      setIsAuthenticated(false)
+      setEntries([]) // Clear entries on error
     } finally {
       setLoading(false)
     }
@@ -44,6 +56,10 @@ export default function AdminFeedback() {
 
   const handleSubmit = (e) => {
     e.preventDefault()
+    if (password.trim() === '') {
+      setError('パスワードを入力してください')
+      return
+    }
     fetchFeedback(password)
   }
 
@@ -65,28 +81,36 @@ export default function AdminFeedback() {
       <div className="max-w-6xl mx-auto">
         <h1 className="text-3xl font-bold mb-6">フィードバック管理</h1>
 
-        {!password && (
+        {!isAuthenticated && (
           <form onSubmit={handleSubmit} className="mb-6">
             <div className="flex gap-4">
               <input
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  setError(null) // Clear error when user types
+                }}
                 placeholder="管理者パスワード"
                 className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white"
                 required
+                disabled={loading}
               />
               <button
                 type="submit"
-                className="px-6 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg font-semibold"
+                disabled={loading}
+                className="px-6 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                認証
+                {loading ? '認証中...' : '認証'}
               </button>
             </div>
+            {error && !loading && (
+              <p className="text-red-400 mt-2">エラー: {error}</p>
+            )}
           </form>
         )}
 
-        {password && (
+        {isAuthenticated && (
           <>
             {/* Filter Tabs */}
             <div className="flex gap-2 mb-6">
