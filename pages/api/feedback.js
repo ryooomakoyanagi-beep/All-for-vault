@@ -2,26 +2,43 @@ import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 
-// Vercel KV support (for production)
+// Redis/KV support (for production)
 // Check if we're running on Vercel
 const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV
 
-let kv = null
-let kvInitialized = false
-let kvError = null
+let redis = null
+let redisInitialized = false
+let redisError = null
 
-// Try to initialize KV client
-if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+// Try to initialize Redis client (Upstash Redis or Vercel KV)
+// Priority: 1. Upstash Redis (UPSTASH_REDIS_REST_URL), 2. Vercel KV (KV_REST_API_URL), 3. Default KV client
+
+if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+  // Use Upstash Redis (recommended)
+  try {
+    const { Redis } = require('@upstash/redis')
+    redis = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    })
+    redisInitialized = true
+    console.log('Upstash Redis initialized successfully')
+  } catch (error) {
+    redisError = error
+    console.error('Upstash Redis initialization failed:', error)
+  }
+} else if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+  // Use Vercel KV (legacy)
   try {
     const { createClient } = require('@vercel/kv')
-    kv = createClient({
+    redis = createClient({
       url: process.env.KV_REST_API_URL,
       token: process.env.KV_REST_API_TOKEN,
     })
-    kvInitialized = true
+    redisInitialized = true
     console.log('Vercel KV initialized successfully with custom credentials')
   } catch (error) {
-    kvError = error
+    redisError = error
     console.error('Vercel KV initialization failed:', error)
   }
 } else {
@@ -29,12 +46,12 @@ if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
   try {
     const { kv: defaultKv } = require('@vercel/kv')
     if (defaultKv) {
-      kv = defaultKv
-      kvInitialized = true
+      redis = defaultKv
+      redisInitialized = true
       console.log('Vercel KV initialized successfully with default client')
     }
   } catch (error) {
-    kvError = error
+    redisError = error
     console.warn('Vercel KV default client initialization failed:', error)
   }
 }
@@ -42,11 +59,14 @@ if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
 // Log environment info for debugging
 console.log('Storage configuration:', {
   isVercel,
-  kvInitialized,
+  redisInitialized,
+  hasUpstashRedisUrl: !!process.env.UPSTASH_REDIS_REST_URL,
+  hasUpstashRedisToken: !!process.env.UPSTASH_REDIS_REST_TOKEN,
   hasKvRestApiUrl: !!process.env.KV_REST_API_URL,
   hasKvRestApiToken: !!process.env.KV_REST_API_TOKEN,
   hasKvUrl: !!process.env.KV_URL,
-  nodeEnv: process.env.NODE_ENV
+  nodeEnv: process.env.NODE_ENV,
+  vercel: process.env.VERCEL
 })
 
 const feedbackFilePath = path.join(process.cwd(), 'data', 'feedback.jsonl')
@@ -69,28 +89,43 @@ function generateSessionId() {
   return crypto.randomBytes(16).toString('hex')
 }
 
-// Save feedback to storage (KV or file system)
+// Save feedback to storage (Redis/KV or file system)
 async function saveFeedback(entry) {
-  // On Vercel, KV is required
-  if (isVercel && !kvInitialized) {
-    throw new Error('Vercel KV is not configured. Please set up KV_REST_API_URL and KV_REST_API_TOKEN environment variables in Vercel dashboard.')
+  // On Vercel, Redis/KV is required
+  if (isVercel && !redisInitialized) {
+    const errorMsg = 'Redis/KV is not configured. Please set up UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN (or KV_REST_API_URL and KV_REST_API_TOKEN) environment variables in Vercel dashboard.'
+    console.error(errorMsg)
+    throw new Error(errorMsg)
   }
 
-  if (kv && kvInitialized) {
-    // Use Vercel KV in production
+  if (redis && redisInitialized) {
+    // Use Redis/KV in production
     try {
       const entryId = `feedback:${entry.sessionId}:${Date.now()}`
-      await kv.set(entryId, entry)
-      await kv.lpush(FEEDBACK_KEY, entryId)
-      console.log('Feedback saved to Vercel KV:', entryId)
+      // Check if using Upstash Redis or Vercel KV
+      if (process.env.UPSTASH_REDIS_REST_URL) {
+        // Upstash Redis
+        await redis.set(entryId, JSON.stringify(entry))
+        await redis.lpush(FEEDBACK_KEY, entryId)
+      } else {
+        // Vercel KV (legacy)
+        await redis.set(entryId, entry)
+        await redis.lpush(FEEDBACK_KEY, entryId)
+      }
+      console.log('Feedback saved to Redis/KV:', entryId)
     } catch (error) {
-      console.error('Error saving to Vercel KV:', error)
-      throw new Error(`Failed to save feedback to KV: ${error.message}`)
+      console.error('Error saving to Redis/KV:', error)
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      })
+      throw new Error(`Failed to save feedback to Redis/KV: ${error.message}`)
     }
   } else {
     // Use file system in development (local only)
     if (isVercel) {
-      throw new Error('File system storage is not available on Vercel. Please configure Vercel KV.')
+      throw new Error('File system storage is not available on Vercel. Please configure Upstash Redis or Vercel KV.')
     }
     if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true })
@@ -103,31 +138,35 @@ async function saveFeedback(entry) {
 
 // Read all feedback entries from storage
 async function readAllFeedback() {
-  // On Vercel, KV is required
-  if (isVercel && !kvInitialized) {
-    throw new Error('Vercel KV is not configured. Please set up KV_REST_API_URL and KV_REST_API_TOKEN environment variables in Vercel dashboard.')
+  // On Vercel, Redis/KV is required
+  if (isVercel && !redisInitialized) {
+    throw new Error('Redis/KV is not configured. Please set up UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN (or KV_REST_API_URL and KV_REST_API_TOKEN) environment variables in Vercel dashboard.')
   }
 
-  if (kv && kvInitialized) {
-    // Use Vercel KV in production
+  if (redis && redisInitialized) {
+    // Use Redis/KV in production
     try {
-      const entryIds = await kv.lrange(FEEDBACK_KEY, 0, -1)
+      const entryIds = await redis.lrange(FEEDBACK_KEY, 0, -1)
       const entries = []
       for (const entryId of entryIds) {
-        const entry = await kv.get(entryId)
-        if (entry) {
-          entries.push(entry)
+        const entryData = await redis.get(entryId)
+        if (entryData) {
+          // Upstash Redis returns string, Vercel KV returns object
+          const entry = typeof entryData === 'string' ? JSON.parse(entryData) : entryData
+          if (entry) {
+            entries.push(entry)
+          }
         }
       }
       return entries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     } catch (error) {
-      console.error('Error reading from Vercel KV:', error)
-      throw new Error(`Failed to read feedback from KV: ${error.message}`)
+      console.error('Error reading from Redis/KV:', error)
+      throw new Error(`Failed to read feedback from Redis/KV: ${error.message}`)
     }
   } else {
     // Use file system in development (local only)
     if (isVercel) {
-      throw new Error('File system storage is not available on Vercel. Please configure Vercel KV.')
+      throw new Error('File system storage is not available on Vercel. Please configure Upstash Redis or Vercel KV.')
     }
     if (!fs.existsSync(feedbackFilePath)) {
       return []
@@ -219,9 +258,9 @@ export default async function handler(req, res) {
         freeComment: freeComment?.trim() || null
       }
 
-      // Save feedback (KV or file system)
-      console.log('Saving feedback using:', kvInitialized ? 'Vercel KV' : 'File system')
-      console.log('Environment:', { isVercel, kvInitialized })
+      // Save feedback (Redis/KV or file system)
+      console.log('Saving feedback using:', redisInitialized ? 'Redis/KV' : 'File system')
+      console.log('Environment:', { isVercel, redisInitialized })
       await saveFeedback(entry)
       console.log('Feedback saved successfully')
 
@@ -239,10 +278,21 @@ export default async function handler(req, res) {
         dataDirExists: fs.existsSync(dataDir),
         feedbackFileExists: fs.existsSync(feedbackFilePath)
       })
-      res.status(500).json({ 
-        error: 'フィードバックの送信に失敗しました',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
-      })
+      // Return detailed error in development, generic error in production
+      const errorResponse = {
+        error: 'フィードバックの送信に失敗しました'
+      }
+      
+      // Include error details in development or if explicitly on Vercel
+      if (process.env.NODE_ENV === 'development' || isVercel) {
+        errorResponse.details = error.message
+        errorResponse.storageConfigured = redisInitialized
+        if (isVercel && !redisInitialized) {
+          errorResponse.setupInstructions = 'Please configure UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in Vercel dashboard Settings > Environment Variables'
+        }
+      }
+      
+      res.status(500).json(errorResponse)
     }
   } else if (req.method === 'GET') {
     try {
@@ -254,8 +304,8 @@ export default async function handler(req, res) {
         return res.status(401).json({ error: '認証が必要です' })
       }
 
-      // Read all feedback entries (KV or file system)
-      console.log('Reading feedback using:', kv ? 'Vercel KV' : 'File system')
+      // Read all feedback entries (Redis/KV or file system)
+      console.log('Reading feedback using:', redisInitialized ? 'Redis/KV' : 'File system')
       const entries = await readAllFeedback()
 
       res.status(200).json({ entries })

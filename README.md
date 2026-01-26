@@ -74,7 +74,7 @@ Vercelにデプロイする場合、フィードバック機能を動作させ�
 4. **「Upstash Redis」を選択**（または「KV」が表示されている場合はそれを選択）
 5. **データベース名を入力して作成**
 6. **環境変数の自動設定**
-   - データベースを作成すると、`KV_REST_API_URL` と `KV_REST_API_TOKEN` が自動的に設定されます
+   - データベースを作成すると、`UPSTASH_REDIS_REST_URL` と `UPSTASH_REDIS_REST_TOKEN` が自動的に設定されます
    - これらは環境変数として自動的に利用可能になります
 
 #### 方法2: 手動で環境変数を設定
@@ -82,15 +82,21 @@ Vercelにデプロイする場合、フィードバック機能を動作させ�
 1. **Upstash Redisアカウントを作成**（https://upstash.com/）
 2. **Redisデータベースを作成**
 3. **Vercelダッシュボードの「Settings」→「Environment Variables」から以下を設定**：
-   - `KV_REST_API_URL`: Upstash RedisのREST API URL（例: `https://xxx.upstash.io`）
-   - `KV_REST_API_TOKEN`: Upstash Redisの認証トークン
+   - `UPSTASH_REDIS_REST_URL`: Upstash RedisのREST API URL（例: `https://xxx.upstash.io`）
+   - `UPSTASH_REDIS_REST_TOKEN`: Upstash Redisの認証トークン
+   
+   **注意**: 古いVercel KVを使用している場合は、`KV_REST_API_URL` と `KV_REST_API_TOKEN` もサポートされていますが、`UPSTASH_REDIS_REST_URL` と `UPSTASH_REDIS_REST_TOKEN` を優先的に使用します。
 
 #### トラブルシューティング
 
 - **フィードバック送信が失敗する場合**:
-  1. Vercelダッシュボードの「Settings」→「Environment Variables」で `KV_REST_API_URL` と `KV_REST_API_TOKEN` が設定されているか確認
-  2. Vercelのログ（「Deployments」→ デプロイメントを選択 → 「Functions」タブ）でエラーメッセージを確認
-  3. 環境変数が設定されている場合、Vercelの「Storage」タブでデータベースが正常に作成されているか確認
+  1. Vercelダッシュボードの「Settings」→「Environment Variables」で以下が設定されているか確認：
+     - `UPSTASH_REDIS_REST_URL` と `UPSTASH_REDIS_REST_TOKEN`（推奨）
+     - または `KV_REST_API_URL` と `KV_REST_API_TOKEN`（旧形式）
+  2. Vercelのログ（「Deployments」→ デプロイメントを選択 → 「Functions」タブ → `/api/feedback`をクリック）でエラーメッセージを確認
+  3. ログに「Storage configuration」が表示されているので、`redisInitialized: true`になっているか確認
+  4. 環境変数が設定されている場合、Vercelの「Storage」タブでデータベースが正常に作成されているか確認
+  5. エラーメッセージに「Redis/KV is not configured」と表示されている場合、環境変数の設定を確認してください
 
 **重要**: Vercel環境ではファイルシステムへの書き込みは不可能なため、KVストアの設定は**必須**です。設定されていない場合、フィードバック機能は動作しません。
 
