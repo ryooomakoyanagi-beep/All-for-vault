@@ -3,7 +3,14 @@ import path from 'path'
 import crypto from 'crypto'
 
 // Vercel KV support (for production)
+// Check if we're running on Vercel
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV
+
 let kv = null
+let kvInitialized = false
+let kvError = null
+
+// Try to initialize KV client
 if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
   try {
     const { createClient } = require('@vercel/kv')
@@ -11,18 +18,36 @@ if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
       url: process.env.KV_REST_API_URL,
       token: process.env.KV_REST_API_TOKEN,
     })
+    kvInitialized = true
+    console.log('Vercel KV initialized successfully with custom credentials')
   } catch (error) {
-    console.warn('Vercel KV initialization failed, falling back to file system:', error)
+    kvError = error
+    console.error('Vercel KV initialization failed:', error)
   }
-} else if (process.env.KV_URL || process.env.KV_REST_API_URL) {
+} else {
   // Try using default kv client if standard env vars are set
   try {
     const { kv: defaultKv } = require('@vercel/kv')
-    kv = defaultKv
+    if (defaultKv) {
+      kv = defaultKv
+      kvInitialized = true
+      console.log('Vercel KV initialized successfully with default client')
+    }
   } catch (error) {
-    console.warn('Vercel KV initialization failed, falling back to file system:', error)
+    kvError = error
+    console.warn('Vercel KV default client initialization failed:', error)
   }
 }
+
+// Log environment info for debugging
+console.log('Storage configuration:', {
+  isVercel,
+  kvInitialized,
+  hasKvRestApiUrl: !!process.env.KV_REST_API_URL,
+  hasKvRestApiToken: !!process.env.KV_REST_API_TOKEN,
+  hasKvUrl: !!process.env.KV_URL,
+  nodeEnv: process.env.NODE_ENV
+})
 
 const feedbackFilePath = path.join(process.cwd(), 'data', 'feedback.jsonl')
 const FEEDBACK_KEY = 'feedback:entries'
@@ -46,36 +71,64 @@ function generateSessionId() {
 
 // Save feedback to storage (KV or file system)
 async function saveFeedback(entry) {
-  if (kv) {
+  // On Vercel, KV is required
+  if (isVercel && !kvInitialized) {
+    throw new Error('Vercel KV is not configured. Please set up KV_REST_API_URL and KV_REST_API_TOKEN environment variables in Vercel dashboard.')
+  }
+
+  if (kv && kvInitialized) {
     // Use Vercel KV in production
-    const entryId = `feedback:${entry.sessionId}:${Date.now()}`
-    await kv.set(entryId, entry)
-    await kv.lpush(FEEDBACK_KEY, entryId)
+    try {
+      const entryId = `feedback:${entry.sessionId}:${Date.now()}`
+      await kv.set(entryId, entry)
+      await kv.lpush(FEEDBACK_KEY, entryId)
+      console.log('Feedback saved to Vercel KV:', entryId)
+    } catch (error) {
+      console.error('Error saving to Vercel KV:', error)
+      throw new Error(`Failed to save feedback to KV: ${error.message}`)
+    }
   } else {
-    // Use file system in development
+    // Use file system in development (local only)
+    if (isVercel) {
+      throw new Error('File system storage is not available on Vercel. Please configure Vercel KV.')
+    }
     if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true })
     }
     const line = JSON.stringify(entry) + '\n'
     await fs.promises.appendFile(feedbackFilePath, line, 'utf8')
+    console.log('Feedback saved to file system')
   }
 }
 
 // Read all feedback entries from storage
 async function readAllFeedback() {
-  if (kv) {
+  // On Vercel, KV is required
+  if (isVercel && !kvInitialized) {
+    throw new Error('Vercel KV is not configured. Please set up KV_REST_API_URL and KV_REST_API_TOKEN environment variables in Vercel dashboard.')
+  }
+
+  if (kv && kvInitialized) {
     // Use Vercel KV in production
-    const entryIds = await kv.lrange(FEEDBACK_KEY, 0, -1)
-    const entries = []
-    for (const entryId of entryIds) {
-      const entry = await kv.get(entryId)
-      if (entry) {
-        entries.push(entry)
+    try {
+      const entryIds = await kv.lrange(FEEDBACK_KEY, 0, -1)
+      const entries = []
+      for (const entryId of entryIds) {
+        const entry = await kv.get(entryId)
+        if (entry) {
+          entries.push(entry)
+        }
       }
+      return entries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    } catch (error) {
+      console.error('Error reading from Vercel KV:', error)
+      throw new Error(`Failed to read feedback from KV: ${error.message}`)
     }
-    return entries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
   } else {
-    // Use file system in development
+    // Use file system in development (local only)
+    if (isVercel) {
+      throw new Error('File system storage is not available on Vercel. Please configure Vercel KV.')
+    }
     if (!fs.existsSync(feedbackFilePath)) {
       return []
     }
@@ -167,7 +220,8 @@ export default async function handler(req, res) {
       }
 
       // Save feedback (KV or file system)
-      console.log('Saving feedback using:', kv ? 'Vercel KV' : 'File system')
+      console.log('Saving feedback using:', kvInitialized ? 'Vercel KV' : 'File system')
+      console.log('Environment:', { isVercel, kvInitialized })
       await saveFeedback(entry)
       console.log('Feedback saved successfully')
 

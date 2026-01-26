@@ -59,27 +59,40 @@ npm run dev
 
 ### フィードバック保存について
 
-- **開発環境**: フィードバックは `data/feedback.jsonl` ファイルに保存されます
-- **Vercel（本番環境）**: フィードバックはVercel KV（またはUpstash Redis）に保存されます
+- **開発環境（ローカル）**: フィードバックは `data/feedback.jsonl` ファイルに保存されます
+- **Vercel（本番環境）**: フィードバックは**必須**でVercel KVまたはUpstash Redisに保存されます（ファイルシステムは使用できません）
 
-### Vercel KVの設定（オプション）
+### Vercel KV / Upstash Redisの設定（必須）
 
-Vercelにデプロイする場合、フィードバック機能を動作させるためにVercel KV（またはUpstash Redis）の設定が必要です：
+Vercelにデプロイする場合、フィードバック機能を動作させるために**必ず**KVストアの設定が必要です：
 
-1. **VercelダッシュボードでKVストアを作成**
-   - Vercelプロジェクトの「Storage」セクションから「Create Database」を選択
-   - 「KV」または「Upstash Redis」を選択して作成
+#### 方法1: Vercel MarketplaceからUpstash Redisを追加（推奨）
 
-2. **環境変数の自動設定**
-   - Vercel KVを作成すると、`KV_REST_API_URL` と `KV_REST_API_TOKEN` が自動的に設定されます
+1. **Vercelダッシュボードでプロジェクトを開く**
+2. **「Storage」タブをクリック**
+3. **「Create Database」をクリック**
+4. **「Upstash Redis」を選択**（または「KV」が表示されている場合はそれを選択）
+5. **データベース名を入力して作成**
+6. **環境変数の自動設定**
+   - データベースを作成すると、`KV_REST_API_URL` と `KV_REST_API_TOKEN` が自動的に設定されます
    - これらは環境変数として自動的に利用可能になります
 
-3. **手動で環境変数を設定する場合**
-   - Vercelダッシュボードの「Settings」→「Environment Variables」から設定
-   - `KV_REST_API_URL`: KVストアのREST API URL
-   - `KV_REST_API_TOKEN`: KVストアの認証トークン
+#### 方法2: 手動で環境変数を設定
 
-**注意**: Vercel KVが設定されていない場合、フィードバック機能はエラーを返します。開発環境ではファイルシステムを使用するため、ローカル開発では問題ありません。
+1. **Upstash Redisアカウントを作成**（https://upstash.com/）
+2. **Redisデータベースを作成**
+3. **Vercelダッシュボードの「Settings」→「Environment Variables」から以下を設定**：
+   - `KV_REST_API_URL`: Upstash RedisのREST API URL（例: `https://xxx.upstash.io`）
+   - `KV_REST_API_TOKEN`: Upstash Redisの認証トークン
+
+#### トラブルシューティング
+
+- **フィードバック送信が失敗する場合**:
+  1. Vercelダッシュボードの「Settings」→「Environment Variables」で `KV_REST_API_URL` と `KV_REST_API_TOKEN` が設定されているか確認
+  2. Vercelのログ（「Deployments」→ デプロイメントを選択 → 「Functions」タブ）でエラーメッセージを確認
+  3. 環境変数が設定されている場合、Vercelの「Storage」タブでデータベースが正常に作成されているか確認
+
+**重要**: Vercel環境ではファイルシステムへの書き込みは不可能なため、KVストアの設定は**必須**です。設定されていない場合、フィードバック機能は動作しません。
 
 ## フィードバック管理画面
 
