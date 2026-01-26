@@ -45,27 +45,59 @@ export default function Feedback() {
       const featuresToSubmit = featureUsed === 'both' ? ['feature1', 'feature2'] : [featureUsed]
 
       for (const feat of featuresToSubmit) {
-        const response = await fetch('/api/feedback', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            featureUsed: feat,
-            clarity,
-            actionability,
-            trust,
-            cognitiveLoad,
-            confusingPhrases: confusingPhrases || null,
-            goodPhrases: goodPhrases || null,
-            rewriteRequest: rewriteRequest || null,
-            freeComment: freeComment || null
-          }),
-        })
+        let response
+        try {
+          // Create AbortController for timeout
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 30000) // 30秒タイムアウト
+
+          response = await fetch('/api/feedback', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              featureUsed: feat,
+              clarity,
+              actionability,
+              trust,
+              cognitiveLoad,
+              confusingPhrases: confusingPhrases || null,
+              goodPhrases: goodPhrases || null,
+              rewriteRequest: rewriteRequest || null,
+              freeComment: freeComment || null
+            }),
+            signal: controller.signal
+          })
+
+          clearTimeout(timeoutId)
+        } catch (fetchError) {
+          console.error('Network error:', fetchError)
+          console.error('Error type:', fetchError.name)
+          console.error('Error message:', fetchError.message)
+          console.error('Full error:', fetchError)
+          
+          // More specific error messages
+          if (fetchError.name === 'AbortError' || fetchError.message === 'The user aborted a request.') {
+            throw new Error('リクエストがタイムアウトしました。サーバーが応答していない可能性があります。')
+          } else if (fetchError.name === 'TypeError' && (fetchError.message.includes('Failed to fetch') || fetchError.message.includes('NetworkError'))) {
+            throw new Error('サーバーに接続できません。開発サーバー（npm run dev）が起動しているか確認してください。')
+          } else if (fetchError.name === 'TypeError' && fetchError.message.includes('Network request failed')) {
+            throw new Error('ネットワーク接続に失敗しました。インターネット接続を確認してください。')
+          } else {
+            throw new Error(`接続エラー: ${fetchError.message || '不明なエラーが発生しました'}`)
+          }
+        }
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.error || 'フィードバックの送信に失敗しました')
+          const errorMessage = errorData.error || `フィードバックの送信に失敗しました (ステータス: ${response.status})`
+          console.error('Feedback submission error:', {
+            status: response.status,
+            statusText: response.statusText,
+            errorData
+          })
+          throw new Error(errorMessage)
         }
 
         // Mark as submitted
@@ -77,8 +109,13 @@ export default function Feedback() {
         router.push('/')
       }, 2000)
     } catch (err) {
-      setError(err.message)
-      console.error('Feedback error:', err)
+      const errorMessage = err.message || 'フィードバックの送信に失敗しました。もう一度お試しください。'
+      setError(errorMessage)
+      console.error('Feedback error:', {
+        message: err.message,
+        error: err,
+        stack: err.stack
+      })
     } finally {
       setLoading(false)
     }

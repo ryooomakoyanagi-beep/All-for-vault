@@ -55,6 +55,32 @@ npm run dev
 - `npm run lint` - ESLintでコードをチェック
 - `npm run check:secrets` - 秘密情報の漏洩をチェック（GitHubに公開する前に実行推奨）
 
+## Vercelへのデプロイ
+
+### フィードバック保存について
+
+- **開発環境**: フィードバックは `data/feedback.jsonl` ファイルに保存されます
+- **Vercel（本番環境）**: フィードバックはVercel KV（またはUpstash Redis）に保存されます
+
+### Vercel KVの設定（オプション）
+
+Vercelにデプロイする場合、フィードバック機能を動作させるためにVercel KV（またはUpstash Redis）の設定が必要です：
+
+1. **VercelダッシュボードでKVストアを作成**
+   - Vercelプロジェクトの「Storage」セクションから「Create Database」を選択
+   - 「KV」または「Upstash Redis」を選択して作成
+
+2. **環境変数の自動設定**
+   - Vercel KVを作成すると、`KV_REST_API_URL` と `KV_REST_API_TOKEN` が自動的に設定されます
+   - これらは環境変数として自動的に利用可能になります
+
+3. **手動で環境変数を設定する場合**
+   - Vercelダッシュボードの「Settings」→「Environment Variables」から設定
+   - `KV_REST_API_URL`: KVストアのREST API URL
+   - `KV_REST_API_TOKEN`: KVストアの認証トークン
+
+**注意**: Vercel KVが設定されていない場合、フィードバック機能はエラーを返します。開発環境ではファイルシステムを使用するため、ローカル開発では問題ありません。
+
 ## フィードバック管理画面
 
 フィードバック管理画面にアクセスするには：
