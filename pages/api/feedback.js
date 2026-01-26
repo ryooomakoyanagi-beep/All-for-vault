@@ -28,11 +28,12 @@ function initializeRedis() {
     hasKvRestApiUrl: !!process.env.KV_REST_API_URL,
     hasKvRestApiToken: !!process.env.KV_REST_API_TOKEN,
     hasKvUrl: !!process.env.KV_URL,
+    hasRedisUrl: !!process.env.REDIS_URL,
     nodeEnv: process.env.NODE_ENV,
     vercel: process.env.VERCEL
   })
 
-  // Priority: 1. Upstash Redis (UPSTASH_REDIS_REST_URL), 2. Vercel KV (KV_REST_API_URL), 3. Default KV client
+  // Priority: 1. Upstash Redis (UPSTASH_REDIS_REST_URL), 2. Vercel KV (KV_REST_API_URL), 3. REDIS_URL, 4. Default KV client
   if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
     // Use Upstash Redis (recommended)
     try {
@@ -53,7 +54,7 @@ function initializeRedis() {
       })
     }
   } else if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
-    // Use Vercel KV (legacy)
+    // Use Vercel KV (most common in Vercel Storage)
     try {
       const { createClient } = require('@vercel/kv')
       redis = createClient({
@@ -61,7 +62,7 @@ function initializeRedis() {
         token: process.env.KV_REST_API_TOKEN,
       })
       redisInitialized = true
-      console.log('Vercel KV initialized successfully with custom credentials')
+      console.log('Vercel KV initialized successfully with KV_REST_API_URL')
     } catch (error) {
       redisError = error
       console.error('Vercel KV initialization failed:', error)
@@ -70,6 +71,21 @@ function initializeRedis() {
         stack: error.stack,
         name: error.name
       })
+    }
+  } else if (process.env.REDIS_URL) {
+    // Try using REDIS_URL if available (some Redis providers)
+    try {
+      const { Redis } = require('@upstash/redis')
+      // REDIS_URL might be a connection string, try to parse it
+      redis = new Redis({
+        url: process.env.REDIS_URL,
+        token: process.env.REDIS_TOKEN || process.env.REDIS_PASSWORD || '',
+      })
+      redisInitialized = true
+      console.log('Redis initialized successfully with REDIS_URL')
+    } catch (error) {
+      redisError = error
+      console.warn('Redis initialization with REDIS_URL failed:', error)
     }
   } else {
     // Try using default kv client if standard env vars are set
@@ -134,12 +150,12 @@ async function saveFeedback(entry) {
     try {
       const entryId = `feedback:${entry.sessionId}:${Date.now()}`
       // Check if using Upstash Redis or Vercel KV
-      if (process.env.UPSTASH_REDIS_REST_URL) {
-        // Upstash Redis
+      if (process.env.UPSTASH_REDIS_REST_URL || process.env.REDIS_URL) {
+        // Upstash Redis or standard Redis - need to stringify
         await currentRedis.set(entryId, JSON.stringify(entry))
         await currentRedis.lpush(FEEDBACK_KEY, entryId)
       } else {
-        // Vercel KV (legacy)
+        // Vercel KV (legacy) - accepts objects directly
         await currentRedis.set(entryId, entry)
         await currentRedis.lpush(FEEDBACK_KEY, entryId)
       }
@@ -334,7 +350,8 @@ export default async function handler(req, res) {
           hasUpstashRedisUrl: !!process.env.UPSTASH_REDIS_REST_URL,
           hasUpstashRedisToken: !!process.env.UPSTASH_REDIS_REST_TOKEN,
           hasKvRestApiUrl: !!process.env.KV_REST_API_URL,
-          hasKvRestApiToken: !!process.env.KV_REST_API_TOKEN
+          hasKvRestApiToken: !!process.env.KV_REST_API_TOKEN,
+          hasRedisUrl: !!process.env.REDIS_URL
         }
         if (isVercel && !currentInitialized) {
           errorResponse.setupInstructions = 'Please configure UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN (or KV_REST_API_URL and KV_REST_API_TOKEN) in Vercel dashboard Settings > Environment Variables'
