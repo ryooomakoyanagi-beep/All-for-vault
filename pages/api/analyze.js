@@ -45,12 +45,57 @@ function loadCSVFile(filename) {
   }
 }
 
+// API response messages (ja / en)
+const msg = {
+  ja: {
+    keepPole: '現在のポールを維持することを推奨します',
+    recommendedPole: (l, w) => `推奨ポール: ${l}ft, ${w}lbs`,
+    noPoleFound: '条件に合うポールが見つかりませんでした（±1ft、±15lbs以内）。現在のポールを維持してください。',
+    startBack: (cm) => `スタート位置：${cm}cm 後ろへ`,
+    startForward: (cm) => `スタート位置：${cm}cm 前へ`,
+    poleBendLess: 'ポールのしなりが少ないため、ポールが硬すぎる可能性があります。柔らかいポールを使用するか、グリップ位置を高くすることを検討してください。',
+    poleBendLarge: 'ポールのしなりが大きいため、ポールが柔らかすぎる可能性があります。硬いポールを使用するか、グリップ位置を低くすることを検討してください。',
+    landingFront: '着地点が手前のため、回転が不足している可能性があります。スタンダードを前に移動するか、少し柔らかいポールを使用することを検討してください。',
+    landingBack: '着地点が奥のため、回転しすぎている可能性があります。スタンダードを後ろに移動するか、少し硬いポールを使用することを検討してください。',
+    landingCenter: '着地点が中央で、ジャンプがバランスよくできています。',
+    runupSlow: '助走スピードが遅いため、助走スピードを向上させることで、より良い結果が得られる可能性があります。',
+    runupGood: '助走スピードは良好です。',
+    noTechFeedback: '技術的なフィードバックはありません。',
+    gripDirectionHigher: '高く',
+    gripDirectionLower: '低く'
+  },
+  en: {
+    keepPole: 'We recommend keeping your current pole.',
+    recommendedPole: (l, w) => `Recommended pole: ${l}ft, ${w}lbs`,
+    noPoleFound: 'No suitable pole found within constraints (±1ft, ±15lbs). Please keep your current pole.',
+    startBack: (cm) => `Start position: ${cm}cm back`,
+    startForward: (cm) => `Start position: ${cm}cm forward`,
+    poleBendLess: 'Pole bend is small; the pole may be too stiff. Consider a softer pole or a higher grip.',
+    poleBendLarge: 'Pole bend is large; the pole may be too soft. Consider a stiffer pole or a lower grip.',
+    landingFront: 'Landing is short; you may be under-rotating. Consider moving the standard forward or using a slightly softer pole.',
+    landingBack: 'Landing is long; you may be over-rotating. Consider moving the standard back or using a slightly stiffer pole.',
+    landingCenter: 'Landing is centered and the jump is well balanced.',
+    runupSlow: 'Run-up speed is slow; improving it may lead to better results.',
+    runupGood: 'Run-up speed is good.',
+    noTechFeedback: 'No technical feedback.',
+    gripDirectionHigher: 'higher',
+    gripDirectionLower: 'lower'
+  }
+}
+
+function getMsg(lang) {
+  return msg[lang === 'en' ? 'en' : 'ja']
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
   try {
+    const lang = req.body.lang === 'en' ? 'en' : 'ja'
+    const m = getMsg(lang)
+
     // Parse all fields from the request body
     const {
       poleLength,      // 使用ポール長 (ft)
@@ -200,7 +245,7 @@ export default async function handler(req, res) {
       recommendedPole = {
         length: poleLengthNum,
         weight: poleWeightNum,
-        message: '現在のポールを維持することを推奨します'
+        message: m.keepPole
       }
       console.log('Recommendation: Keep current pole')
     } else {
@@ -244,7 +289,7 @@ export default async function handler(req, res) {
           length: closestPole.length,
           weight: closestPole.weight,
           resistanceIndex: closestPole.resistanceIndex,
-          message: `推奨ポール: ${closestPole.length}ft, ${closestPole.weight}lbs`
+          message: m.recommendedPole(closestPole.length, closestPole.weight)
         }
         console.log('Recommended pole:', recommendedPole)
       } else {
@@ -252,7 +297,7 @@ export default async function handler(req, res) {
         recommendedPole = {
           length: poleLengthNum,
           weight: poleWeightNum,
-          message: '条件に合うポールが見つかりませんでした（±1ft、±15lbs以内）。現在のポールを維持してください。'
+          message: m.noPoleFound
         }
       }
     }
@@ -363,22 +408,17 @@ export default async function handler(req, res) {
     } else if (offsetCm >= 5 && offsetCm < 10) {
       // 5-9cm → adjust by 5cm
       if (takeoffOffsetNum > 0) {
-        // Too close → move start back
-        startAdjustment = 'スタート位置：5cm 後ろへ'
+        startAdjustment = m.startBack(5)
       } else {
-        // Too far → move start forward
-        startAdjustment = 'スタート位置：5cm 前へ'
+        startAdjustment = m.startForward(5)
       }
       console.log('Offset 5-9cm, adjusting by 5cm')
     } else {
-      // ≥10cm → adjust in 10cm increments
-      const adjustmentCm = Math.round(offsetCm / 10) * 10 // Round to nearest 10cm
+      const adjustmentCm = Math.round(offsetCm / 10) * 10
       if (takeoffOffsetNum > 0) {
-        // Too close → move start back
-        startAdjustment = `スタート位置：${adjustmentCm}cm 後ろへ`
+        startAdjustment = m.startBack(adjustmentCm)
       } else {
-        // Too far → move start forward
-        startAdjustment = `スタート位置：${adjustmentCm}cm 前へ`
+        startAdjustment = m.startForward(adjustmentCm)
       }
       console.log(`Offset ≥10cm, adjusting by ${adjustmentCm}cm`)
     }
@@ -393,38 +433,35 @@ export default async function handler(req, res) {
     
     // Analyze pole bend
     if (poleBend === '少') {
-      techFeedback.push('ポールのしなりが少ないため、ポールが硬すぎる可能性があります。柔らかいポールを使用するか、グリップ位置を高くすることを検討してください。')
+      techFeedback.push(m.poleBendLess)
       console.log('Pole bend is too small')
     } else if (poleBend === '大') {
-      techFeedback.push('ポールのしなりが大きいため、ポールが柔らかすぎる可能性があります。硬いポールを使用するか、グリップ位置を低くすることを検討してください。')
+      techFeedback.push(m.poleBendLarge)
       console.log('Pole bend is too large')
     } else if (poleBend === '普通') {
-      // If bend is normal, check landing point
       if (landingPoint === '手前') {
-        techFeedback.push('着地点が手前のため、回転が不足している可能性があります。スタンダードを前に移動するか、少し柔らかいポールを使用することを検討してください。')
+        techFeedback.push(m.landingFront)
         console.log('Landing point is too close (under-rotation)')
       } else if (landingPoint === '奥') {
-        techFeedback.push('着地点が奥のため、回転しすぎている可能性があります。スタンダードを後ろに移動するか、少し硬いポールを使用することを検討してください。')
+        techFeedback.push(m.landingBack)
         console.log('Landing point is too far (over-rotation)')
       } else if (landingPoint === '中央') {
-        techFeedback.push('着地点が中央で、ジャンプがバランスよくできています。')
+        techFeedback.push(m.landingCenter)
         console.log('Landing point is well-balanced')
       }
     }
     
-    // Check runup speed
     if (runupSpeed === '遅い') {
-      techFeedback.push('助走スピードが遅いため、助走スピードを向上させることで、より良い結果が得られる可能性があります。')
+      techFeedback.push(m.runupSlow)
       console.log('Runup speed is slow')
     } else if (runupSpeed === '良い') {
-      techFeedback.push('助走スピードは良好です。')
+      techFeedback.push(m.runupGood)
       console.log('Runup speed is good')
     }
     
-    // Combine feedback into a single string
     const techFeedbackText = techFeedback.length > 0 
       ? techFeedback.join(' ') 
-      : '技術的なフィードバックはありません。'
+      : m.noTechFeedback
     
     console.log('Technical Feedback:', techFeedbackText)
     console.log('=====================================')
@@ -450,23 +487,21 @@ export default async function handler(req, res) {
     let adjustedGripFists = null
     
     if (poleBend === '少') {
-      // ポールが硬すぎる場合：グリップ位置を高くする（ポールの先端に近づける = 数値を小さくする）
-      const adjustmentAmount = 20 // 20cm高く
-      adjustedGripPosition = Math.max(0, gripPositionNum - adjustmentAmount) // グリップ位置を高く = 数値を減らす
+      const adjustmentAmount = 20
+      adjustedGripPosition = Math.max(0, gripPositionNum - adjustmentAmount)
       adjustedGripFists = Math.round(adjustedGripPosition / 10)
       gripAdjustment = {
-        direction: '高く',
+        direction: m.gripDirectionHigher,
         amount: adjustmentAmount,
         newGripPosition: adjustedGripPosition,
         newGripFists: adjustedGripFists
       }
     } else if (poleBend === '大') {
-      // ポールが柔らかすぎる場合：グリップ位置を低くする（ポールの先端から遠ざける = 数値を大きくする）
-      const adjustmentAmount = 20 // 20cm低く
-      adjustedGripPosition = gripPositionNum + adjustmentAmount // グリップ位置を低く = 数値を増やす
+      const adjustmentAmount = 20
+      adjustedGripPosition = gripPositionNum + adjustmentAmount
       adjustedGripFists = Math.round(adjustedGripPosition / 10)
       gripAdjustment = {
-        direction: '低く',
+        direction: m.gripDirectionLower,
         amount: adjustmentAmount,
         newGripPosition: adjustedGripPosition,
         newGripFists: adjustedGripFists

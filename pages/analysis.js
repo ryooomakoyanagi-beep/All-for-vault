@@ -166,7 +166,8 @@ export default function Analysis() {
         poleBend,
         landingPoint,
         runupSpeed,
-        notes
+        notes,
+        lang
       }
 
       const response = await fetch('/api/analyze', {
