@@ -2,9 +2,13 @@ import { useState, useEffect } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
+import { useLanguage } from '../context/LanguageContext'
+import { getTranslations } from '../lib/translations'
 
 export default function Analysis() {
   const router = useRouter()
+  const { lang } = useLanguage()
+  const t = getTranslations(lang)
   // Individual useState for each input field
   const [poleLength, setPoleLength] = useState('14')
   const [poleWeight, setPoleWeight] = useState('150')
@@ -180,6 +184,9 @@ export default function Analysis() {
 
       const data = await response.json()
       setAnalysisResult(data)
+      try {
+        sessionStorage.setItem('feedbackContext_feature1', JSON.stringify(data))
+      } catch (_) {}
     } catch (err) {
       setError(err.message)
       console.error('Analysis error:', err)
@@ -191,8 +198,8 @@ export default function Analysis() {
   return (
     <div className="analysis-page relative min-h-screen overflow-hidden">
       <Head>
-        <title>Run-up Analysis - All for Vault</title>
-        <meta name="description" content="Run-up & Pole 分析ページ" />
+        <title>{t.analysisTitle} - All for Vault</title>
+        <meta name="description" content={lang === 'en' ? 'Run-up & Pole analysis' : 'Run-up & Pole 分析ページ'} />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       </Head>
 
@@ -207,14 +214,14 @@ export default function Analysis() {
       </div>
 
       <main className="analysis-container relative z-10">
-        <Link href="/" className="back-link">← ホームに戻る</Link>
+        <Link href="/" className="back-link">← {t.home}</Link>
         
-        <h1 className="analysis-title">Run-up Analysis</h1>
-        <p className="analysis-subtitle">助走、踏切位置、ポールの分析を行います</p>
+        <h1 className="analysis-title">{t.analysisTitle}</h1>
+        <p className="analysis-subtitle">{t.analysisSubtitle}</p>
 
         <form onSubmit={handleSubmit} className="analysis-form">
           <div className="form-group">
-            <label htmlFor="poleLength">使用ポール長 (ft)</label>
+            <label htmlFor="poleLength">{t.poleLength}</label>
             <div className="pole-length-control">
               <button
                 type="button"
@@ -245,12 +252,12 @@ export default function Analysis() {
               </button>
             </div>
             {!poleLength && (
-              <p className="field-hint">基準: 14ft（ボタンで調整）</p>
+              <p className="field-hint">{t.poleLengthHint}</p>
             )}
           </div>
 
           <div className="form-group">
-            <label htmlFor="poleWeight">使用ポール硬さ (lbs)</label>
+            <label htmlFor="poleWeight">{t.poleWeight}</label>
             <div className="pole-weight-control">
               <button
                 type="button"
@@ -281,13 +288,13 @@ export default function Analysis() {
                 →
               </button>
             </div>
-            <p className="field-hint">基準: 150lbs（10lbs単位で調整）</p>
+            <p className="field-hint">{t.poleWeightHint}</p>
           </div>
 
           <div className="form-group">
             <label htmlFor="gripPosition">
-              グリップ位置 (cm)
-              <span className="field-note">（ポールの先端から何センチか）</span>
+              {t.gripPosition}
+              <span className="field-note">{t.gripPositionNote}</span>
             </label>
             <div className="grip-position-control">
               <button
@@ -319,11 +326,11 @@ export default function Analysis() {
                 →
               </button>
             </div>
-            <p className="field-hint">基準: 50cm（10cm単位で調整、こぶし一個=10cm）</p>
+            <p className="field-hint">{t.gripPositionHint}</p>
           </div>
 
           <div className="form-group">
-            <label htmlFor="takeoffOffset">踏切位置のズレ (cm)</label>
+            <label htmlFor="takeoffOffset">{t.takeoffOffset}</label>
             <div className="takeoff-offset-control">
               <button
                 type="button"
@@ -353,14 +360,11 @@ export default function Analysis() {
                 →
               </button>
             </div>
-            <p className="field-hint">
-              基準: 0cm（10cm単位で調整）<br />
-              ＋の場合：届いていない / −の場合：オーバーしている
-            </p>
+            <p className="field-hint">{t.takeoffOffsetHint}</p>
           </div>
 
           <div className="form-group">
-            <label htmlFor="midMark">6歩前中間マーク (m)</label>
+            <label htmlFor="midMark">{t.midMark}</label>
             <div className="midmark-control">
               <button
                 type="button"
@@ -390,11 +394,11 @@ export default function Analysis() {
                 →
               </button>
             </div>
-            <p className="field-hint">基準: 13.5m（0.1m単位で調整）</p>
+            <p className="field-hint">{t.midMarkHint}</p>
           </div>
 
           <div className="form-group">
-            <label htmlFor="poleBend">湾曲（ポールのしなり具合）</label>
+            <label htmlFor="poleBend">{t.poleBend}</label>
             <select
               id="poleBend"
               name="poleBend"
@@ -402,15 +406,15 @@ export default function Analysis() {
               onChange={handleChange}
               required
             >
-              <option value="">選択してください</option>
-              <option value="少">少</option>
-              <option value="普通">普通</option>
-              <option value="大">大</option>
+              <option value="">{t.selectPlaceholder}</option>
+              <option value="少">{t.poleBendLess}</option>
+              <option value="普通">{t.poleBendNormal}</option>
+              <option value="大">{t.poleBendLarge}</option>
             </select>
           </div>
 
           <div className="form-group">
-            <label htmlFor="landingPoint">着地点</label>
+            <label htmlFor="landingPoint">{t.landingPoint}</label>
             <select
               id="landingPoint"
               name="landingPoint"
@@ -418,15 +422,15 @@ export default function Analysis() {
               onChange={handleChange}
               required
             >
-              <option value="">選択してください</option>
-              <option value="手前">手前</option>
-              <option value="中央">中央</option>
-              <option value="奥">奥</option>
+              <option value="">{t.selectPlaceholder}</option>
+              <option value="手前">{t.landingFront}</option>
+              <option value="中央">{t.landingCenter}</option>
+              <option value="奥">{t.landingBack}</option>
             </select>
           </div>
 
           <div className="form-group">
-            <label htmlFor="runupSpeed">助走スピード</label>
+            <label htmlFor="runupSpeed">{t.runupSpeed}</label>
             <select
               id="runupSpeed"
               name="runupSpeed"
@@ -434,21 +438,21 @@ export default function Analysis() {
               onChange={handleChange}
               required
             >
-              <option value="">選択してください</option>
-              <option value="良い">良い</option>
-              <option value="普通">普通</option>
-              <option value="遅い">遅い</option>
+              <option value="">{t.selectPlaceholder}</option>
+              <option value="良い">{t.speedGood}</option>
+              <option value="普通">{t.speedNormal}</option>
+              <option value="遅い">{t.speedSlow}</option>
             </select>
           </div>
 
           <div className="form-group">
-            <label htmlFor="notes">その他（疲労度や風の有無）</label>
+            <label htmlFor="notes">{t.notes}</label>
             <textarea
               id="notes"
               name="notes"
               value={notes}
               onChange={handleChange}
-              placeholder="その他の情報やメモを入力してください"
+              placeholder={t.notesPlaceholder}
               rows={4}
             />
           </div>
@@ -458,74 +462,69 @@ export default function Analysis() {
             disabled={loading} 
             className="submit-button"
           >
-            {loading ? '分析中...' : '分析する'}
+            {loading ? t.analyzeLoading : t.analyzeSubmit}
           </button>
         </form>
 
         {error && (
           <div className="error-message">
-            <p>エラー: {error}</p>
+            <p>{t.errorPrefix} {error}</p>
           </div>
         )}
 
         {loading && (
           <div className="loading-message">
-            <p>分析中…</p>
+            <p>{t.analyzeLoading}</p>
           </div>
         )}
 
         {analysisResult && (
           <div className="result-section">
-            <h2 className="result-title">分析結果</h2>
+            <h2 className="result-title">{t.analysisResultTitle}</h2>
             
-            {/* 【結論】 */}
             <div className="result-item">
-              <h3 className="result-heading">【結論】</h3>
+              <h3 className="result-heading">{t.conclusion}</h3>
               <p className="result-content">
                 {analysisResult.gripAdjustment ? (
                   <>
-                    現在のポールを維持することを推奨します。
-                    <span> | 推奨グリップ位置: {analysisResult.gripAdjustment.newGripPosition.toFixed(1)}cm（拳{analysisResult.gripAdjustment.newGripFists}個目）</span>
+                    {t.keepPole}
+                    <span> | {t.recommendedGrip} {analysisResult.gripAdjustment.newGripPosition.toFixed(1)}cm（{t.fistsBefore}{analysisResult.gripAdjustment.newGripFists}{t.fistsAfter}）</span>
                   </>
                 ) : analysisResult.newPole ? (
                   <>
-                    推奨ポール: {analysisResult.newPole.length}ft, {analysisResult.newPole.weight}lbs
+                    {t.recommendedPole} {analysisResult.newPole.length}ft, {analysisResult.newPole.weight}lbs
                     {analysisResult.currentGripPosition !== undefined && (
-                      <span> | 現在のポール: {analysisResult.currentGripPosition.toFixed(1)}cm（拳{analysisResult.currentGripFists}個目）</span>
+                      <span> | {t.currentPole} {analysisResult.currentGripPosition.toFixed(1)}cm（{t.fistsBefore}{analysisResult.currentGripFists}{t.fistsAfter}）</span>
                     )}
                   </>
                 ) : (
                   <>
-                    現在のポールを維持することを推奨します。
+                    {t.keepPole}
                     {analysisResult.currentGripPosition !== undefined && (
-                      <span> | 現在のポール: {analysisResult.currentGripPosition.toFixed(1)}cm（拳{analysisResult.currentGripFists}個目）</span>
+                      <span> | {t.currentPole} {analysisResult.currentGripPosition.toFixed(1)}cm（{t.fistsBefore}{analysisResult.currentGripFists}{t.fistsAfter}）</span>
                     )}
                   </>
                 )}
               </p>
             </div>
 
-            {/* 【ポール・グリップ提案】 */}
             {(analysisResult.newPole || analysisResult.gripAdjustment) && (
               <div className="result-item">
-                <h3 className="result-heading">【ポール・グリップ提案】</h3>
+                <h3 className="result-heading">{t.poleGripTitle}</h3>
                 <p className="result-content">
-                  {/* アプローチ1: ポールを変えない場合のグリップ位置調整 */}
                   {analysisResult.gripAdjustment && (
                     <span>
-                      <strong>アプローチ1（現在のポールを維持）:</strong> グリップ位置を{analysisResult.gripAdjustment.direction}{analysisResult.gripAdjustment.amount}cm調整してください。
-                      推奨グリップ位置: {analysisResult.gripAdjustment.newGripPosition.toFixed(1)}cm（拳{analysisResult.gripAdjustment.newGripFists}個目）
+                      <strong>{t.approach1}</strong> {t.gripAdjust}{analysisResult.gripAdjustment.direction}{analysisResult.gripAdjustment.amount}cm{t.adjust}
+                      {t.recommendedGrip} {analysisResult.gripAdjustment.newGripPosition.toFixed(1)}cm（{t.fistsBefore}{analysisResult.gripAdjustment.newGripFists}{t.fistsAfter}）
                       <br /><br />
                     </span>
                   )}
-                  
-                  {/* アプローチ2: ポールを変えた場合 */}
                   {analysisResult.newPole && (
                     <span>
-                      <strong>アプローチ2（ポールを変更）:</strong> {analysisResult.recommendation || 
-                       `推奨ポール: ${analysisResult.newPole.length}ft, ${analysisResult.newPole.weight}lbs`}
+                      <strong>{t.approach2}</strong> {analysisResult.recommendation || 
+                       `${t.recommendedPole} ${analysisResult.newPole.length}ft, ${analysisResult.newPole.weight}lbs`}
                       {analysisResult.newPoleGripFromTop !== null && analysisResult.newPoleGripFromTop !== undefined && (
-                        <span> | グリップ位置: {analysisResult.newPoleGripFromTop.toFixed(1)}cm（拳{analysisResult.newPoleGripFists}個目）</span>
+                        <span> | {t.recommendedGrip} {analysisResult.newPoleGripFromTop.toFixed(1)}cm（{t.fistsBefore}{analysisResult.newPoleGripFists}{t.fistsAfter}）</span>
                       )}
                     </span>
                   )}
@@ -533,19 +532,18 @@ export default function Analysis() {
               </div>
             )}
 
-            {/* 【助走調整】 */}
             {(analysisResult.startAdjustment || analysisResult.recommendedMidMark) && (
               <div className="result-item">
-                <h3 className="result-heading">【助走調整】</h3>
+                <h3 className="result-heading">{t.runupTitle}</h3>
                 <p className="result-content">
                   {analysisResult.startAdjustment && (
                     <span>{analysisResult.startAdjustment}<br /></span>
                   )}
                   {analysisResult.recommendedMidMark && (
                     <span>
-                      推奨中間マーク: {analysisResult.recommendedMidMark.toFixed(2)}m
+                      {t.recommendedMidMark} {analysisResult.recommendedMidMark.toFixed(2)}m
                       {analysisResult.currentMidMark !== undefined && (
-                        <span>（現在: {analysisResult.currentMidMark.toFixed(2)}m</span>
+                        <span>（{t.current} {analysisResult.currentMidMark.toFixed(2)}m</span>
                       )}
                       {analysisResult.midMarkDifferenceCm !== undefined && analysisResult.midMarkDifferenceCm !== 0 && (
                         <span>
@@ -560,29 +558,27 @@ export default function Analysis() {
               </div>
             )}
 
-            {/* 【技術的フィードバック】 */}
             {analysisResult.techFeedback && (
               <div className="result-item">
-                <h3 className="result-heading">【技術的フィードバック】</h3>
+                <h3 className="result-heading">{t.techFeedbackTitle}</h3>
                 <p className="result-content">{analysisResult.techFeedback}</p>
               </div>
             )}
 
-            {/* 【追加データで精度向上】 */}
             {analysisResult.takeoffPhysical && (
               <div className="result-item">
-                <h3 className="result-heading">【追加データで精度向上】</h3>
+                <h3 className="result-heading">{t.extraDataTitle}</h3>
                 <p className="result-content">
-                  物理的踏切位置: {analysisResult.takeoffPhysical.toFixed(2)}m
+                  {t.physicalTakeoff} {analysisResult.takeoffPhysical.toFixed(2)}m
                   {analysisResult.idealTakeoffPosition && (
-                    <span> | 理想の踏切位置: {analysisResult.idealTakeoffPosition.toFixed(2)}m</span>
+                    <span> | {t.idealTakeoff} {analysisResult.idealTakeoffPosition.toFixed(2)}m</span>
                   )}
                   {analysisResult.newPoleGripFromTop !== null && analysisResult.newPoleGripFromTop !== undefined && (
                     <span>
                       <br />
-                      変更後ポールの上から: {analysisResult.newPoleGripFromTop.toFixed(1)}cm
+                      {t.afterChange} {analysisResult.newPoleGripFromTop.toFixed(1)}cm
                       {analysisResult.newPoleGripFists !== null && (
-                        <span>（拳{analysisResult.newPoleGripFists}個目）</span>
+                        <span>（{t.fistsBefore}{analysisResult.newPoleGripFists}{t.fistsAfter}）</span>
                       )}
                     </span>
                   )}
@@ -592,16 +588,15 @@ export default function Analysis() {
           </div>
         )}
 
-        {/* Feedback Prompt */}
         {showFeedbackPrompt && (
           <div className="mt-6 bg-gradient-to-br from-slate-800/80 to-slate-900/80 border border-slate-700/50 backdrop-blur-sm p-6 rounded-2xl">
-            <p className="text-white font-semibold mb-4">分析は完了しました。30秒でフィードバックお願いします</p>
+            <p className="text-white font-semibold mb-4">{t.analysisFeedbackPrompt}</p>
             <div className="flex gap-4">
               <Link
                 href="/feedback?feature=feature1"
                 className="px-6 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all"
               >
-                フィードバックする
+                {t.feedbackCta}
               </Link>
               <button
                 onClick={() => {
@@ -610,7 +605,7 @@ export default function Analysis() {
                 }}
                 className="px-6 py-2 bg-slate-700/50 text-slate-300 font-semibold rounded-lg hover:bg-slate-700 transition-all"
               >
-                あとで
+                {t.feedbackLater}
               </button>
             </div>
           </div>

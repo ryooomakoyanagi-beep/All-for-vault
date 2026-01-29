@@ -42,6 +42,7 @@ next-env.d.ts
 # data files (feedback outputs only)
 data/*.jsonl
 data/*.json
+data/feedback.csv
 # Keep reference files tracked
 !data/reference/
 !data/reference/**

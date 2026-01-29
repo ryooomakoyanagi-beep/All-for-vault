@@ -1,15 +1,84 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
+import { useLanguage } from '../../context/LanguageContext'
+import { getTranslations } from '../../lib/translations'
+
+function OutputSnapshotBlock({ entry, t }) {
+  const [open, setOpen] = useState(false)
+  const output = entry.outputSnapshot
+  if (!output) return null
+  let parsed = null
+  try {
+    parsed = typeof output === 'string' ? JSON.parse(output) : output
+  } catch (_) {
+    return (
+      <div className="mt-4 pt-4 border-t border-slate-700">
+        <button type="button" onClick={() => setOpen(!open)} className="text-slate-400 text-sm font-semibold hover:text-white">
+          {open ? '▼' : '▶'} {t.outputSnapshotRaw}
+        </button>
+        {open && <pre className="mt-2 text-xs text-slate-400 whitespace-pre-wrap break-all">{output}</pre>}
+      </div>
+    )
+  }
+  const isFeature2 = entry.featureUsed === 'feature2'
+  return (
+    <div className="mt-4 pt-4 border-t border-slate-700">
+      <button type="button" onClick={() => setOpen(!open)} className="text-slate-400 text-sm font-semibold hover:text-white">
+        {open ? '▼' : '▶'} {t.outputSnapshotLabel}
+      </button>
+      {open && (
+        <div className="mt-3 space-y-3 text-sm">
+          {isFeature2 && parsed.question != null && (
+            <div>
+              <span className="text-slate-500">{t.questionLabel}</span>
+              <p className="text-white mt-1 whitespace-pre-wrap">{parsed.question}</p>
+            </div>
+          )}
+          {isFeature2 && (parsed.advice != null || parsed.message != null) && (
+            <div>
+              <span className="text-slate-500">{t.adviceLabel}</span>
+              <p className="text-white mt-1 whitespace-pre-wrap">{parsed.advice ?? parsed.message}</p>
+            </div>
+          )}
+          {!isFeature2 && parsed && (
+            <div className="space-y-2">
+              {parsed.gripAdjustment && (
+                <p className="text-white">
+                  <span className="text-slate-500">{t.gripSuggestion}</span> {parsed.gripAdjustment.direction}{parsed.gripAdjustment.amount}cm → {parsed.gripAdjustment.newGripPosition?.toFixed(1)}cm
+                </p>
+              )}
+              {parsed.newPole && (
+                <p className="text-white">
+                  <span className="text-slate-500">{t.recommendedPoleLabel}</span> {parsed.newPole.length}ft, {parsed.newPole.weight}lbs
+                </p>
+              )}
+              {parsed.recommendedMidMark != null && (
+                <p className="text-white">
+                  <span className="text-slate-500">{t.recommendedMidMarkLabel}</span> {parsed.recommendedMidMark}m
+                </p>
+              )}
+              {parsed.startAdjustment && <p className="text-white">{parsed.startAdjustment}</p>}
+              {parsed.techFeedback && <p className="text-white">{parsed.techFeedback}</p>}
+              {parsed.recommendation && <p className="text-white">{parsed.recommendation}</p>}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function AdminFeedback() {
   const router = useRouter()
+  const { lang } = useLanguage()
+  const t = getTranslations(lang)
   const [entries, setEntries] = useState([])
-  const [loading, setLoading] = useState(false) // Changed to false - only show loading when actually fetching
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [filter, setFilter] = useState('all') // all, feature1, feature2
+  const [filter, setFilter] = useState('all')
   const [password, setPassword] = useState('')
-  const [isAuthenticated, setIsAuthenticated] = useState(false) // Track if user has successfully authenticated
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
 
   useEffect(() => {
     // Check if password is provided in URL
@@ -22,7 +91,7 @@ export default function AdminFeedback() {
 
   const fetchFeedback = async (pwd) => {
     if (!pwd || pwd.trim() === '') {
-      setError('パスワードを入力してください')
+      setError(t.passwordRequired)
       return
     }
     
@@ -37,9 +106,9 @@ export default function AdminFeedback() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          throw new Error('認証に失敗しました。パスワードを確認してください。')
+          throw new Error(t.authFailed)
         }
-        throw new Error('フィードバックの取得に失敗しました')
+        throw new Error(t.fetchFailed)
       }
 
       const data = await response.json()
@@ -57,7 +126,7 @@ export default function AdminFeedback() {
   const handleSubmit = (e) => {
     e.preventDefault()
     if (password.trim() === '') {
-      setError('パスワードを入力してください')
+      setError(t.passwordRequired)
       return
     }
     fetchFeedback(password)
@@ -68,18 +137,18 @@ export default function AdminFeedback() {
     : entries.filter(entry => entry.featureUsed === filter)
 
   const featureNames = {
-    feature1: '助走・ポール分析',
-    feature2: '技術アドバイス'
+    feature1: t.feature1Name,
+    feature2: t.feature2Name
   }
 
   return (
     <div className="min-h-screen bg-slate-900 text-white p-6">
       <Head>
-        <title>フィードバック管理 - All for Vault</title>
+        <title>{t.adminTitle}</title>
       </Head>
 
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">フィードバック管理</h1>
+        <h1 className="text-3xl font-bold mb-6">{t.adminHeading}</h1>
 
         {!isAuthenticated && (
           <form onSubmit={handleSubmit} className="mb-6">
@@ -89,9 +158,9 @@ export default function AdminFeedback() {
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value)
-                  setError(null) // Clear error when user types
+                  setError(null)
                 }}
-                placeholder="管理者パスワード"
+                placeholder={t.adminPasswordPlaceholder}
                 className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white"
                 required
                 disabled={loading}
@@ -101,18 +170,17 @@ export default function AdminFeedback() {
                 disabled={loading}
                 className="px-6 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? '認証中...' : '認証'}
+                {loading ? t.authenticating : t.authenticate}
               </button>
             </div>
             {error && !loading && (
-              <p className="text-red-400 mt-2">エラー: {error}</p>
+              <p className="text-red-400 mt-2">{t.errorLabel} {error}</p>
             )}
           </form>
         )}
 
         {isAuthenticated && (
           <>
-            {/* Filter Tabs */}
             <div className="flex gap-2 mb-6">
               <button
                 onClick={() => setFilter('all')}
@@ -122,7 +190,7 @@ export default function AdminFeedback() {
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                すべて
+                {t.all}
               </button>
               <button
                 onClick={() => setFilter('feature1')}
@@ -132,7 +200,7 @@ export default function AdminFeedback() {
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                助走・ポール分析
+                {t.feature1Name}
               </button>
               <button
                 onClick={() => setFilter('feature2')}
@@ -142,17 +210,17 @@ export default function AdminFeedback() {
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                技術アドバイス
+                {t.feature2Name}
               </button>
             </div>
 
-            {loading && <p className="text-slate-400">読み込み中...</p>}
-            {error && <p className="text-red-400">エラー: {error}</p>}
+            {loading && <p className="text-slate-400">{t.loading}</p>}
+            {error && <p className="text-red-400">{t.errorLabel} {error}</p>}
 
             {!loading && !error && (
               <div className="space-y-4">
                 <p className="text-slate-400">
-                  {filteredEntries.length}件のフィードバック（{filter === 'all' ? 'すべて' : featureNames[filter]}）
+                  {filteredEntries.length}{t.entriesCount}{filter === 'all' ? t.all : featureNames[filter]}）
                 </p>
                 {filteredEntries.map((entry, index) => (
                   <div
@@ -175,19 +243,19 @@ export default function AdminFeedback() {
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                       <div>
-                        <span className="text-slate-400 text-sm">明確さ</span>
+                        <span className="text-slate-400 text-sm">{t.clarityLabel}</span>
                         <p className="text-2xl font-bold text-white">{entry.clarity}</p>
                       </div>
                       <div>
-                        <span className="text-slate-400 text-sm">実行可能性</span>
+                        <span className="text-slate-400 text-sm">{t.actionabilityLabel}</span>
                         <p className="text-2xl font-bold text-white">{entry.actionability}</p>
                       </div>
                       <div>
-                        <span className="text-slate-400 text-sm">信頼性</span>
+                        <span className="text-slate-400 text-sm">{t.trustLabel}</span>
                         <p className="text-2xl font-bold text-white">{entry.trust}</p>
                       </div>
                       <div>
-                        <span className="text-slate-400 text-sm">認知負荷</span>
+                        <span className="text-slate-400 text-sm">{t.cognitiveLoadLabel}</span>
                         <p className="text-2xl font-bold text-white">{entry.cognitiveLoad}</p>
                       </div>
                     </div>
@@ -196,30 +264,31 @@ export default function AdminFeedback() {
                       <div className="space-y-2 mt-4 pt-4 border-t border-slate-700">
                         {entry.confusingPhrases && (
                           <div>
-                            <span className="text-slate-400 text-sm">分かりにくい表現:</span>
+                            <span className="text-slate-400 text-sm">{t.confusingPhrasesLabel}</span>
                             <p className="text-white">{entry.confusingPhrases}</p>
                           </div>
                         )}
                         {entry.goodPhrases && (
                           <div>
-                            <span className="text-slate-400 text-sm">良い表現:</span>
+                            <span className="text-slate-400 text-sm">{t.goodPhrasesLabel}</span>
                             <p className="text-white">{entry.goodPhrases}</p>
                           </div>
                         )}
                         {entry.rewriteRequest && (
                           <div>
-                            <span className="text-slate-400 text-sm">書き直しリクエスト:</span>
+                            <span className="text-slate-400 text-sm">{t.rewriteRequestLabel}</span>
                             <p className="text-white">{entry.rewriteRequest}</p>
                           </div>
                         )}
                         {entry.freeComment && (
                           <div>
-                            <span className="text-slate-400 text-sm">自由コメント:</span>
+                            <span className="text-slate-400 text-sm">{t.freeCommentLabel}</span>
                             <p className="text-white">{entry.freeComment}</p>
                           </div>
                         )}
                       </div>
                     )}
+                    <OutputSnapshotBlock entry={entry} t={t} />
                   </div>
                 ))}
               </div>

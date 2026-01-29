@@ -113,13 +113,95 @@ function initializeRedis() {
   return { redis, redisInitialized, redisError }
 }
 
-const feedbackFilePath = path.join(process.cwd(), 'data', 'feedback.jsonl')
+const feedbackDir = path.join(process.cwd(), 'data')
+const feedbackCsvPath = path.join(feedbackDir, 'feedback.csv')
 const FEEDBACK_KEY = 'feedback:entries'
 
 // Ensure data directory exists (for file system storage)
-const dataDir = path.join(process.cwd(), 'data')
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true })
+if (!fs.existsSync(feedbackDir)) {
+  fs.mkdirSync(feedbackDir, { recursive: true })
+}
+
+// CSV escape: wrap in double quotes and escape internal quotes
+function escapeCSVField(value) {
+  if (value === null || value === undefined) return ''
+  const str = String(value)
+  if (str.includes('"') || str.includes(',') || str.includes('\n') || str.includes('\r')) {
+    return '"' + str.replace(/"/g, '""') + '"'
+  }
+  return str
+}
+
+const CSV_HEADER = 'createdAt,sessionId,userAgent,ipHash,featureUsed,clarity,actionability,trust,cognitiveLoad,confusingPhrases,goodPhrases,rewriteRequest,freeComment,outputSnapshot'
+
+function appendFeedbackToCSV(entry) {
+  const row = [
+    entry.createdAt,
+    entry.sessionId,
+    entry.userAgent || '',
+    entry.ipHash || '',
+    entry.featureUsed,
+    entry.clarity,
+    entry.actionability,
+    entry.trust,
+    entry.cognitiveLoad,
+    entry.confusingPhrases || '',
+    entry.goodPhrases || '',
+    entry.rewriteRequest || '',
+    entry.freeComment || '',
+    entry.outputSnapshot || ''
+  ].map(escapeCSVField).join(',')
+  const fileExists = fs.existsSync(feedbackCsvPath)
+  const line = fileExists ? '\n' + row : CSV_HEADER + '\n' + row
+  fs.appendFileSync(feedbackCsvPath, line, 'utf8')
+}
+
+function readFeedbackFromCSV() {
+  if (!fs.existsSync(feedbackCsvPath)) return []
+  const content = fs.readFileSync(feedbackCsvPath, 'utf8')
+  const lines = content.split(/\r?\n/).filter(line => line.trim())
+  if (lines.length < 2) return []
+  const header = lines[0].split(',')
+  const entries = []
+  for (let i = 1; i < lines.length; i++) {
+    const values = parseCSVLine(lines[i])
+    const entry = {}
+    header.forEach((key, idx) => {
+      let val = values[idx]
+      if (val !== undefined && (key === 'clarity' || key === 'actionability' || key === 'trust' || key === 'cognitiveLoad')) {
+        val = Number(val)
+      }
+      entry[key] = val
+    })
+    entries.push(entry)
+  }
+  return entries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+}
+
+function parseCSVLine(line) {
+  const result = []
+  let current = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]
+    if (c === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"'
+        i++
+      } else {
+        inQuotes = !inQuotes
+      }
+    } else if (inQuotes) {
+      current += c
+    } else if (c === ',') {
+      result.push(current)
+      current = ''
+    } else {
+      current += c
+    }
+  }
+  result.push(current)
+  return result
 }
 
 // Hash IP address for privacy
@@ -170,16 +252,15 @@ async function saveFeedback(entry) {
       throw new Error(`Failed to save feedback to Redis/KV: ${error.message}`)
     }
   } else {
-    // Use file system in development (local only)
+    // Use file system: CSV in data/feedback.csv (persistent)
     if (isVercel) {
       throw new Error('File system storage is not available on Vercel. Please configure Upstash Redis or Vercel KV.')
     }
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true })
+    if (!fs.existsSync(feedbackDir)) {
+      fs.mkdirSync(feedbackDir, { recursive: true })
     }
-    const line = JSON.stringify(entry) + '\n'
-    await fs.promises.appendFile(feedbackFilePath, line, 'utf8')
-    console.log('Feedback saved to file system')
+    appendFeedbackToCSV(entry)
+    console.log('Feedback saved to CSV (data/feedback.csv)')
   }
 }
 
@@ -216,25 +297,11 @@ async function readAllFeedback() {
       throw new Error(`Failed to read feedback from Redis/KV: ${error.message}`)
     }
   } else {
-    // Use file system in development (local only)
+    // Use file system: read from CSV
     if (isVercel) {
       throw new Error('File system storage is not available on Vercel. Please configure Upstash Redis or Vercel KV.')
     }
-    if (!fs.existsSync(feedbackFilePath)) {
-      return []
-    }
-    const fileContent = fs.readFileSync(feedbackFilePath, 'utf8')
-    const lines = fileContent.trim().split('\n').filter(line => line.trim())
-    return lines
-      .map(line => {
-        try {
-          return JSON.parse(line)
-        } catch (e) {
-          return null
-        }
-      })
-      .filter(entry => entry !== null)
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    return readFeedbackFromCSV()
   }
 }
 
@@ -268,7 +335,8 @@ export default async function handler(req, res) {
         confusingPhrases,
         goodPhrases,
         rewriteRequest,
-        freeComment
+        freeComment,
+        outputSnapshot
       } = req.body
 
       // Validate required fields
@@ -293,7 +361,7 @@ export default async function handler(req, res) {
       const userAgent = req.headers['user-agent'] || 'unknown'
       const sessionId = generateSessionId()
 
-      // Create feedback entry
+      // Create feedback entry (outputSnapshot = 機能①②の出力結果を文字列で保存)
       const entry = {
         createdAt: new Date().toISOString(),
         sessionId,
@@ -307,7 +375,8 @@ export default async function handler(req, res) {
         confusingPhrases: confusingPhrases?.trim() || null,
         goodPhrases: goodPhrases?.trim() || null,
         rewriteRequest: rewriteRequest?.trim() || null,
-        freeComment: freeComment?.trim() || null
+        freeComment: freeComment?.trim() || null,
+        outputSnapshot: outputSnapshot != null ? (typeof outputSnapshot === 'string' ? outputSnapshot : JSON.stringify(outputSnapshot)) : null
       }
 
       // Initialize Redis before saving
@@ -329,9 +398,9 @@ export default async function handler(req, res) {
       console.error('Error details:', {
         message: error.message,
         stack: error.stack,
-        feedbackFilePath,
-        dataDirExists: fs.existsSync(dataDir),
-        feedbackFileExists: fs.existsSync(feedbackFilePath)
+        feedbackCsvPath,
+        dataDirExists: fs.existsSync(feedbackDir),
+        feedbackFileExists: fs.existsSync(feedbackCsvPath)
       })
       // Return detailed error in development, generic error in production
       const errorResponse = {
