@@ -40,18 +40,6 @@ export default function Feedback() {
   const featureUsed = feature === 'feature1' ? 'feature1' : feature === 'feature2' ? 'feature2' : 'both'
   const featureName = feature === 'feature1' ? t.feature1Name : feature === 'feature2' ? t.feature2Name : t.featureName
 
-  useEffect(() => {
-    // Check if feedback already submitted for this feature
-    if (feature === 'feature1' && localStorage.getItem('feedbackSubmitted_feature1')) {
-      router.push('/')
-      return
-    }
-    if (feature === 'feature2' && localStorage.getItem('feedbackSubmitted_feature2')) {
-      router.push('/')
-      return
-    }
-  }, [feature, router])
-
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)

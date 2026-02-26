@@ -90,7 +90,8 @@ export default function AdminFeedback() {
   }, [router.query])
 
   const fetchFeedback = async (pwd) => {
-    if (!pwd || pwd.trim() === '') {
+    const normalizedPassword = (pwd || '').trim()
+    if (!normalizedPassword) {
       setError(t.passwordRequired)
       return
     }
@@ -98,17 +99,18 @@ export default function AdminFeedback() {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch('/api/feedback', {
+      const response = await fetch(`/api/feedback?password=${encodeURIComponent(normalizedPassword)}`, {
         headers: {
-          'X-Admin-Password': pwd
+          'X-Admin-Password': normalizedPassword
         }
       })
 
       if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
         if (response.status === 401) {
           throw new Error(t.authFailed)
         }
-        throw new Error(t.fetchFailed)
+        throw new Error(errorData.error || t.fetchFailed)
       }
 
       const data = await response.json()
@@ -237,7 +239,7 @@ export default function AdminFeedback() {
                         </p>
                       </div>
                       <div className="text-xs text-slate-500">
-                        {entry.ipHash} | {entry.sessionId.substring(0, 8)}...
+                        {entry.ipHash || 'unknown'} | {(entry.sessionId || 'unknown').substring(0, 8)}...
                       </div>
                     </div>
 

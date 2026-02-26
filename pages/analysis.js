@@ -25,9 +25,9 @@ export default function Analysis() {
   const [error, setError] = useState(null)
   const [showFeedbackPrompt, setShowFeedbackPrompt] = useState(false)
 
-  // Check if feedback should be shown
+  // Show feedback prompt whenever a new result is generated
   useEffect(() => {
-    if (analysisResult && !localStorage.getItem('feedbackSubmitted_feature1') && !localStorage.getItem('feedbackDismissed_feature1')) {
+    if (analysisResult) {
       setShowFeedbackPrompt(true)
     }
   }, [analysisResult])
@@ -185,6 +185,7 @@ export default function Analysis() {
 
       const data = await response.json()
       setAnalysisResult(data)
+      setShowFeedbackPrompt(true)
       try {
         sessionStorage.setItem('feedbackContext_feature1', JSON.stringify(data))
       } catch (_) {}
@@ -601,7 +602,6 @@ export default function Analysis() {
               </Link>
               <button
                 onClick={() => {
-                  localStorage.setItem('feedbackDismissed_feature1', '1')
                   setShowFeedbackPrompt(false)
                 }}
                 className="px-6 py-2 bg-slate-700/50 text-slate-300 font-semibold rounded-lg hover:bg-slate-700 transition-all"

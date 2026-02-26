@@ -62,7 +62,7 @@ export default function Home() {
               </div>
             </Link>
 
-            <Link href="/advice" className="block">
+            <Link href="/act" className="block">
               <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 border border-slate-700/50 backdrop-blur-sm p-6 rounded-2xl cursor-pointer transition-all hover:scale-[1.02] hover:shadow-xl hover:shadow-orange-500/20 active:scale-[0.98]">
                 <div className="flex items-start gap-4">
                   <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center flex-shrink-0 shadow-lg overflow-hidden">

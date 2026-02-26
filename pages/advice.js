@@ -15,9 +15,9 @@ export default function Advice() {
   const [error, setError] = useState(null)
   const [showFeedbackPrompt, setShowFeedbackPrompt] = useState(false)
 
-  // Check if feedback should be shown
+  // Show feedback prompt whenever a new advice result is generated
   useEffect(() => {
-    if (result && !localStorage.getItem('feedbackSubmitted_feature2') && !localStorage.getItem('feedbackDismissed_feature2')) {
+    if (result) {
       setShowFeedbackPrompt(true)
     }
   }, [result])
@@ -45,7 +45,15 @@ export default function Advice() {
       const data = await response.json()
       setResult(data)
       try {
-        sessionStorage.setItem('feedbackContext_feature2', JSON.stringify({ question: data.question, advice: data.advice || data.message }))
+        const userQuestion = data.question || input
+        const aiAnswer = data.advice || data.message
+        sessionStorage.setItem('feedbackContext_feature2', JSON.stringify({
+          source: 'advice',
+          question: userQuestion,
+          advice: aiAnswer,
+          userQuestion,
+          aiAnswer,
+        }))
       } catch (_) {}
     } catch (err) {
       setError(err.message)
@@ -142,7 +150,6 @@ export default function Advice() {
               </Link>
               <button
                 onClick={() => {
-                  localStorage.setItem('feedbackDismissed_feature2', '1')
                   setShowFeedbackPrompt(false)
                 }}
                 className="px-6 py-2 bg-slate-700/50 text-slate-300 font-semibold rounded-lg hover:bg-slate-700 transition-all"

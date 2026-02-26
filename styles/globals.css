@@ -1176,3 +1176,18 @@ h1 {
   color: var(--text);
 } */
 
+/* ACT (AI Construal Tuner) Styles */
+.act-scrollbar::-webkit-scrollbar { width: 4px; }
+.act-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.act-scrollbar::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.25); border-radius: 4px; }
+.act-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,0.45); }
+
+.act-input-no-spin::-webkit-inner-spin-button,
+.act-input-no-spin::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.act-input-no-spin { -moz-appearance: textfield; }
+
+@media (max-width: 640px) {
+  .act-scrollbar::-webkit-scrollbar { display: none; }
+  .act-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
