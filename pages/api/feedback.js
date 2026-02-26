@@ -113,7 +113,9 @@ function initializeRedis() {
   return { redis, redisInitialized, redisError }
 }
 
-const feedbackDir = path.join(process.cwd(), 'data')
+const feedbackDir = isVercel
+  ? path.join('/tmp', 'all-for-vault', 'data')
+  : path.join(process.cwd(), 'data')
 const feedbackCsvPath = path.join(feedbackDir, 'feedback.csv')
 const FEEDBACK_KEY = 'feedback:entries'
 
@@ -219,13 +221,6 @@ function generateSessionId() {
 async function saveFeedback(entry) {
   // Initialize Redis if not already done
   const { redis: currentRedis, redisInitialized: currentInitialized } = initializeRedis()
-  
-  // On Vercel, Redis/KV is required
-  if (isVercel && !currentInitialized) {
-    const errorMsg = 'Redis/KV is not configured. Please set up UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN (or KV_REST_API_URL and KV_REST_API_TOKEN) environment variables in Vercel dashboard.'
-    console.error(errorMsg)
-    throw new Error(errorMsg)
-  }
 
   if (currentRedis && currentInitialized) {
     // Use Redis/KV in production
@@ -252,10 +247,7 @@ async function saveFeedback(entry) {
       throw new Error(`Failed to save feedback to Redis/KV: ${error.message}`)
     }
   } else {
-    // Use file system: CSV in data/feedback.csv (persistent)
-    if (isVercel) {
-      throw new Error('File system storage is not available on Vercel. Please configure Upstash Redis or Vercel KV.')
-    }
+    // Use file system fallback: CSV in data/feedback.csv (Vercel uses /tmp)
     if (!fs.existsSync(feedbackDir)) {
       fs.mkdirSync(feedbackDir, { recursive: true })
     }
@@ -268,13 +260,6 @@ async function saveFeedback(entry) {
 async function readAllFeedback() {
   // Initialize Redis if not already done
   const { redis: currentRedis, redisInitialized: currentInitialized } = initializeRedis()
-  
-  // On Vercel, Redis/KV is required
-  if (isVercel && !currentInitialized) {
-    const errorMsg = 'Redis/KV is not configured. Please set up UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN (or KV_REST_API_URL and KV_REST_API_TOKEN) environment variables in Vercel dashboard.'
-    console.error(errorMsg)
-    throw new Error(errorMsg)
-  }
 
   if (currentRedis && currentInitialized) {
     // Use Redis/KV in production
@@ -297,10 +282,7 @@ async function readAllFeedback() {
       throw new Error(`Failed to read feedback from Redis/KV: ${error.message}`)
     }
   } else {
-    // Use file system: read from CSV
-    if (isVercel) {
-      throw new Error('File system storage is not available on Vercel. Please configure Upstash Redis or Vercel KV.')
-    }
+    // Use file system fallback: read from CSV (Vercel uses /tmp)
     return readFeedbackFromCSV()
   }
 }
@@ -435,7 +417,11 @@ export default async function handler(req, res) {
       const adminPassword = req.headers['x-admin-password'] || req.query.password
       const expectedPassword = process.env.ADMIN_PASSWORD
 
-      if (!expectedPassword || adminPassword !== expectedPassword) {
+      if (!expectedPassword) {
+        return res.status(500).json({ error: 'ADMIN_PASSWORD が未設定です。環境変数を設定してください。' })
+      }
+
+      if (adminPassword !== expectedPassword) {
         return res.status(401).json({ error: '認証が必要です' })
       }
 
