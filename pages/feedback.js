@@ -97,7 +97,8 @@ export default function Feedback() {
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
-          const errorMessage = errorData.error || `フィードバックの送信に失敗しました (ステータス: ${response.status})`
+          const detail = errorData?.details ? ` (${errorData.details})` : ''
+          const errorMessage = (errorData.error || `フィードバックの送信に失敗しました (ステータス: ${response.status})`) + detail
           console.error('Feedback submission error:', {
             status: response.status,
             statusText: response.statusText,

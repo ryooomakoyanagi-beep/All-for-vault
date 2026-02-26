@@ -72,7 +72,7 @@ function initializeRedis() {
         name: error.name
       })
     }
-  } else if (process.env.REDIS_URL) {
+  } else if (process.env.REDIS_URL && (process.env.REDIS_TOKEN || process.env.REDIS_PASSWORD)) {
     // Try using REDIS_URL if available (some Redis providers)
     try {
       const { Redis } = require('@upstash/redis')
@@ -88,20 +88,8 @@ function initializeRedis() {
       console.warn('Redis initialization with REDIS_URL failed:', error)
     }
   } else {
-    // Try using default kv client if standard env vars are set
-    try {
-      const { kv: defaultKv } = require('@vercel/kv')
-      if (defaultKv) {
-        redis = defaultKv
-        redisInitialized = true
-        console.log('Vercel KV initialized successfully with default client')
-      } else {
-        console.warn('Vercel KV default client is not available')
-      }
-    } catch (error) {
-      redisError = error
-      console.warn('Vercel KV default client initialization failed:', error)
-    }
+    // No configured Redis/KV credentials found.
+    console.log('Redis/KV credentials are not configured; using file storage fallback')
   }
   
   console.log('Storage initialization result:', {
@@ -156,6 +144,14 @@ function appendFeedbackToCSV(entry) {
   const fileExists = fs.existsSync(feedbackCsvPath)
   const line = fileExists ? '\n' + row : CSV_HEADER + '\n' + row
   fs.appendFileSync(feedbackCsvPath, line, 'utf8')
+}
+
+function saveFeedbackToFile(entry) {
+  if (!fs.existsSync(feedbackDir)) {
+    fs.mkdirSync(feedbackDir, { recursive: true })
+  }
+  appendFeedbackToCSV(entry)
+  console.log('Feedback saved to CSV (data/feedback.csv)')
 }
 
 function readFeedbackFromCSV() {
@@ -244,15 +240,12 @@ async function saveFeedback(entry) {
         stack: error.stack,
         name: error.name
       })
-      throw new Error(`Failed to save feedback to Redis/KV: ${error.message}`)
+      console.warn('Falling back to file storage after Redis/KV save failure')
+      saveFeedbackToFile(entry)
     }
   } else {
     // Use file system fallback: CSV in data/feedback.csv (Vercel uses /tmp)
-    if (!fs.existsSync(feedbackDir)) {
-      fs.mkdirSync(feedbackDir, { recursive: true })
-    }
-    appendFeedbackToCSV(entry)
-    console.log('Feedback saved to CSV (data/feedback.csv)')
+    saveFeedbackToFile(entry)
   }
 }
 
@@ -279,7 +272,8 @@ async function readAllFeedback() {
       return entries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     } catch (error) {
       console.error('Error reading from Redis/KV:', error)
-      throw new Error(`Failed to read feedback from Redis/KV: ${error.message}`)
+      console.warn('Falling back to file storage after Redis/KV read failure')
+      return readFeedbackFromCSV()
     }
   } else {
     // Use file system fallback: read from CSV (Vercel uses /tmp)
