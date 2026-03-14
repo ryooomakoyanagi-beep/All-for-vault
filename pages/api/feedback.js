@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
+import * as XLSX from 'xlsx'
 
 // Redis/KV support (for production)
 // Check if we're running on Vercel
@@ -105,6 +106,7 @@ const feedbackDir = isVercel
   ? path.join('/tmp', 'all-for-vault', 'data')
   : path.join(process.cwd(), 'data')
 const feedbackCsvPath = path.join(feedbackDir, 'feedback.csv')
+const feedbackExcelPath = path.join(feedbackDir, 'feedback.xlsx')
 const FEEDBACK_KEY = 'feedback:entries'
 
 // Ensure data directory exists (for file system storage)
@@ -122,7 +124,7 @@ function escapeCSVField(value) {
   return str
 }
 
-const CSV_HEADER = 'createdAt,sessionId,userAgent,ipHash,featureUsed,clarity,actionability,trust,cognitiveLoad,confusingPhrases,goodPhrases,rewriteRequest,freeComment,outputSnapshot'
+const CSV_HEADER = 'createdAt,sessionId,userAgent,ipHash,featureUsed,clarity,actionability,trust,cognitiveLoad,optionalName,optionalEmail,usagePurpose,userRole,athleteRecord,confusingPhrases,goodPhrases,rewriteRequest,freeComment,outputSnapshot'
 
 function appendFeedbackToCSV(entry) {
   const row = [
@@ -135,6 +137,11 @@ function appendFeedbackToCSV(entry) {
     entry.actionability,
     entry.trust,
     entry.cognitiveLoad,
+    entry.optionalName || '',
+    entry.optionalEmail || '',
+    entry.usagePurpose || '',
+    entry.userRole || '',
+    entry.athleteRecord || '',
     entry.confusingPhrases || '',
     entry.goodPhrases || '',
     entry.rewriteRequest || '',
@@ -151,7 +158,51 @@ function saveFeedbackToFile(entry) {
     fs.mkdirSync(feedbackDir, { recursive: true })
   }
   appendFeedbackToCSV(entry)
+  appendFeedbackToExcel(entry)
   console.log('Feedback saved to CSV (data/feedback.csv)')
+}
+
+function appendFeedbackToExcel(entry) {
+  const row = {
+    createdAt: entry.createdAt,
+    sessionId: entry.sessionId,
+    userAgent: entry.userAgent || '',
+    ipHash: entry.ipHash || '',
+    featureUsed: entry.featureUsed,
+    clarity: entry.clarity,
+    actionability: entry.actionability,
+    trust: entry.trust,
+    cognitiveLoad: entry.cognitiveLoad,
+    optionalName: entry.optionalName || '',
+    optionalEmail: entry.optionalEmail || '',
+    usagePurpose: entry.usagePurpose || '',
+    userRole: entry.userRole || '',
+    athleteRecord: entry.athleteRecord || '',
+    confusingPhrases: entry.confusingPhrases || '',
+    goodPhrases: entry.goodPhrases || '',
+    rewriteRequest: entry.rewriteRequest || '',
+    freeComment: entry.freeComment || '',
+    outputSnapshot: entry.outputSnapshot || '',
+  }
+
+  if (!fs.existsSync(feedbackExcelPath)) {
+    const worksheet = XLSX.utils.json_to_sheet([row])
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'feedback')
+    XLSX.writeFile(workbook, feedbackExcelPath)
+    return
+  }
+
+  const workbook = XLSX.readFile(feedbackExcelPath)
+  const sheetName = workbook.SheetNames[0] || 'feedback'
+  const worksheet = workbook.Sheets[sheetName] || XLSX.utils.json_to_sheet([])
+  const data = XLSX.utils.sheet_to_json(worksheet, { defval: '' })
+  data.push(row)
+  workbook.Sheets[sheetName] = XLSX.utils.json_to_sheet(data)
+  if (!workbook.SheetNames.includes(sheetName)) {
+    XLSX.utils.book_append_sheet(workbook, workbook.Sheets[sheetName], sheetName)
+  }
+  XLSX.writeFile(workbook, feedbackExcelPath)
 }
 
 function readFeedbackFromCSV() {
@@ -312,6 +363,11 @@ export default async function handler(req, res) {
         goodPhrases,
         rewriteRequest,
         freeComment,
+        optionalName,
+        optionalEmail,
+        usagePurpose,
+        userRole,
+        athleteRecord,
         outputSnapshot
       } = req.body
 
@@ -323,6 +379,22 @@ export default async function handler(req, res) {
       // Validate featureUsed
       if (!['feature1', 'feature2'].includes(featureUsed)) {
         return res.status(400).json({ error: '無効なfeatureUsedです' })
+      }
+
+      if (!usagePurpose || !usagePurpose.toString().trim() || !userRole) {
+        return res.status(400).json({ error: '使用目的と立場は必須です' })
+      }
+      if (!['athlete', 'coach'].includes(userRole)) {
+        return res.status(400).json({ error: '立場の値が無効です' })
+      }
+      if (userRole === 'athlete') {
+        const recordNum = Number(athleteRecord)
+        if (!athleteRecord || Number.isNaN(recordNum) || recordNum <= 0) {
+          return res.status(400).json({ error: '選手の場合は記録（m）を入力してください' })
+        }
+      }
+      if (optionalEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(optionalEmail).trim())) {
+        return res.status(400).json({ error: 'メールアドレスの形式が正しくありません' })
       }
 
       // Validate Likert scale (1-5)
@@ -348,6 +420,11 @@ export default async function handler(req, res) {
         actionability: Number(actionability),
         trust: Number(trust),
         cognitiveLoad: Number(cognitiveLoad),
+        optionalName: optionalName?.trim() || null,
+        optionalEmail: optionalEmail?.trim() || null,
+        usagePurpose: usagePurpose?.trim() || null,
+        userRole,
+        athleteRecord: userRole === 'athlete' ? Number(athleteRecord).toFixed(1) : null,
         confusingPhrases: confusingPhrases?.trim() || null,
         goodPhrases: goodPhrases?.trim() || null,
         rewriteRequest: rewriteRequest?.trim() || null,

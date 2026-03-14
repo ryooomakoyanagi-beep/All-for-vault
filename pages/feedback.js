@@ -19,6 +19,11 @@ export default function Feedback() {
   const [goodPhrases, setGoodPhrases] = useState('')
   const [rewriteRequest, setRewriteRequest] = useState('')
   const [freeComment, setFreeComment] = useState('')
+  const [optionalName, setOptionalName] = useState('')
+  const [optionalEmail, setOptionalEmail] = useState('')
+  const [usagePurpose, setUsagePurpose] = useState('')
+  const [userRole, setUserRole] = useState('')
+  const [athleteRecord, setAthleteRecord] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
@@ -46,6 +51,16 @@ export default function Feedback() {
     setError(null)
 
     try {
+      if (!usagePurpose.trim() || !userRole) {
+        throw new Error(t.purposeAndRoleRequired)
+      }
+      if (userRole === 'athlete' && !athleteRecord.trim()) {
+        throw new Error(t.athleteRecordRequired)
+      }
+      if (optionalEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(optionalEmail.trim())) {
+        throw new Error(t.invalidEmail)
+      }
+
       // If feature is 'both', we need to handle it differently
       const featuresToSubmit = featureUsed === 'both' ? ['feature1', 'feature2'] : [featureUsed]
 
@@ -71,6 +86,11 @@ export default function Feedback() {
               goodPhrases: goodPhrases || null,
               rewriteRequest: rewriteRequest || null,
               freeComment: freeComment || null,
+              optionalName: optionalName || null,
+              optionalEmail: optionalEmail || null,
+              usagePurpose: usagePurpose || null,
+              userRole: userRole || null,
+              athleteRecord: userRole === 'athlete' ? athleteRecord || null : null,
               outputSnapshot: outputSnapshot || null
             }),
             signal: controller.signal
@@ -165,6 +185,7 @@ export default function Feedback() {
         <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 border border-slate-700/50 backdrop-blur-sm p-8 rounded-2xl">
           <h1 className="text-3xl font-bold text-white mb-2">{t.feedbackTitle}</h1>
           <p className="text-slate-400 mb-6">{featureName}{t.feedbackIntro}</p>
+          <p className="text-slate-400 text-sm mb-4">{t.personalInfoOptionalNote}</p>
           {outputSnapshot && (
             <p className="text-slate-400 text-sm mb-4 bg-slate-800/50 rounded-lg px-3 py-2">
               {t.outputSavedNote}
@@ -280,6 +301,95 @@ export default function Feedback() {
             </div>
 
             <div className="space-y-4">
+              <div>
+                <label className="block text-white font-medium mb-2">
+                  {t.optionalName}
+                </label>
+                <input
+                  type="text"
+                  value={optionalName}
+                  onChange={(e) => setOptionalName(e.target.value)}
+                  className="w-full px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                  placeholder={t.optionalNamePlaceholder}
+                />
+              </div>
+
+              <div>
+                <label className="block text-white font-medium mb-2">
+                  {t.optionalEmail}
+                </label>
+                <input
+                  type="email"
+                  value={optionalEmail}
+                  onChange={(e) => setOptionalEmail(e.target.value)}
+                  className="w-full px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                  placeholder={t.optionalEmailPlaceholder}
+                />
+              </div>
+
+              <div>
+                <label className="block text-white font-medium mb-2">
+                  {t.usagePurpose} <span className="text-red-400">*</span>
+                </label>
+                <textarea
+                  value={usagePurpose}
+                  onChange={(e) => setUsagePurpose(e.target.value)}
+                  rows={2}
+                  required
+                  className="w-full px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                  placeholder={t.usagePurposePlaceholder}
+                />
+              </div>
+
+              <div>
+                <label className="block text-white font-medium mb-2">
+                  {t.userRole} <span className="text-red-400">*</span>
+                </label>
+                <div className="flex gap-3">
+                  <label className="flex items-center gap-2 text-slate-200">
+                    <input
+                      type="radio"
+                      name="userRole"
+                      value="athlete"
+                      checked={userRole === 'athlete'}
+                      onChange={(e) => setUserRole(e.target.value)}
+                      required
+                    />
+                    {t.roleAthlete}
+                  </label>
+                  <label className="flex items-center gap-2 text-slate-200">
+                    <input
+                      type="radio"
+                      name="userRole"
+                      value="coach"
+                      checked={userRole === 'coach'}
+                      onChange={(e) => setUserRole(e.target.value)}
+                      required
+                    />
+                    {t.roleCoach}
+                  </label>
+                </div>
+              </div>
+
+              {userRole === 'athlete' && (
+                <div>
+                  <label className="block text-white font-medium mb-2">
+                    {t.athleteRecord} <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.1"
+                    min="0"
+                    value={athleteRecord}
+                    onChange={(e) => setAthleteRecord(e.target.value)}
+                    required
+                    className="w-full px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                    placeholder={t.athleteRecordPlaceholder}
+                  />
+                </div>
+              )}
+
               <div>
                 <label className="block text-white font-medium mb-2">
                   {t.confusingPhrases}

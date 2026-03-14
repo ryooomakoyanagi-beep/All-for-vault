@@ -262,8 +262,38 @@ export default function AdminFeedback() {
                       </div>
                     </div>
 
-                    {(entry.confusingPhrases || entry.goodPhrases || entry.rewriteRequest || entry.freeComment) && (
+                    {(entry.optionalName || entry.optionalEmail || entry.usagePurpose || entry.userRole || entry.athleteRecord || entry.confusingPhrases || entry.goodPhrases || entry.rewriteRequest || entry.freeComment) && (
                       <div className="space-y-2 mt-4 pt-4 border-t border-slate-700">
+                        {entry.optionalName && (
+                          <div>
+                            <span className="text-slate-400 text-sm">{t.optionalNameLabel}</span>
+                            <p className="text-white">{entry.optionalName}</p>
+                          </div>
+                        )}
+                        {entry.optionalEmail && (
+                          <div>
+                            <span className="text-slate-400 text-sm">{t.optionalEmailLabel}</span>
+                            <p className="text-white">{entry.optionalEmail}</p>
+                          </div>
+                        )}
+                        {entry.usagePurpose && (
+                          <div>
+                            <span className="text-slate-400 text-sm">{t.usagePurposeLabel}</span>
+                            <p className="text-white">{entry.usagePurpose}</p>
+                          </div>
+                        )}
+                        {entry.userRole && (
+                          <div>
+                            <span className="text-slate-400 text-sm">{t.userRoleLabel}</span>
+                            <p className="text-white">{entry.userRole === 'athlete' ? t.roleAthlete : t.roleCoach}</p>
+                          </div>
+                        )}
+                        {entry.athleteRecord && (
+                          <div>
+                            <span className="text-slate-400 text-sm">{t.athleteRecordLabel}</span>
+                            <p className="text-white">{entry.athleteRecord}m</p>
+                          </div>
+                        )}
                         {entry.confusingPhrases && (
                           <div>
                             <span className="text-slate-400 text-sm">{t.confusingPhrasesLabel}</span>
