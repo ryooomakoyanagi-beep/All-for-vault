@@ -13,7 +13,7 @@ export default function Analysis() {
   const [poleLength, setPoleLength] = useState('14')
   const [poleWeight, setPoleWeight] = useState('150')
   const [gripPosition, setGripPosition] = useState('50')
-  const [takeoffOffset, setTakeoffOffset] = useState('0')
+  const [takeoffOffset, setTakeoffOffset] = useState('3.30')
   const [midMark, setMidMark] = useState('13.5')
   const [poleBend, setPoleBend] = useState('')
   const [landingPoint, setLandingPoint] = useState('')
@@ -104,10 +104,10 @@ export default function Analysis() {
     setPoleLength(newValue.toFixed(1))
   }
 
-  // Handle grip position increment/decrement (10cm steps, base: 50cm)
+  // Handle grip position increment/decrement (5cm steps, base: 50cm)
   const adjustGripPosition = (direction) => {
     const current = parseFloat(gripPosition) || 50
-    const step = direction === 'increment' ? 10 : -10
+    const step = direction === 'increment' ? 5 : -5
     const newValue = current + step
     
     // Ensure value doesn't go below 0
@@ -116,12 +116,13 @@ export default function Analysis() {
     }
   }
 
-  // Handle takeoff offset increment/decrement (10cm steps, base: 0cm)
+  // Handle takeoff position increment/decrement (0.05m steps, base: 3.30m)
   const adjustTakeoffOffset = (direction) => {
-    const current = parseFloat(takeoffOffset) || 0
-    const step = direction === 'increment' ? 10 : -10
+    const current = parseFloat(takeoffOffset) || 3.3
+    const step = direction === 'increment' ? 0.05 : -0.05
     const newValue = current + step
-    setTakeoffOffset(newValue.toString())
+    const clamped = Math.max(3.0, Math.min(4.1, newValue))
+    setTakeoffOffset(clamped.toFixed(2))
   }
 
   // Handle pole weight increment/decrement (10lbs steps, base: 150lbs)
@@ -152,16 +153,11 @@ export default function Analysis() {
 
     try {
       // Gather all input values
-      // Convert takeoffOffset from cm to m (with sign)
-      const takeoffOffsetCm = parseFloat(takeoffOffset) || 0
-      const takeoffOffsetM = (takeoffOffsetCm / 100).toFixed(2)
-      const takeoffOffsetWithSign = takeoffOffsetCm >= 0 ? `+${takeoffOffsetM}` : takeoffOffsetM
-      
       const formData = {
         poleLength,
         poleWeight,
         gripPosition,
-        takeoffOffset: takeoffOffsetWithSign,
+        takeoffOffset,
         midMark,
         poleBend,
         landingPoint,
@@ -303,7 +299,7 @@ export default function Analysis() {
                 type="button"
                 className="grip-position-button"
                 onClick={() => adjustGripPosition('decrement')}
-                aria-label="グリップ位置を10cm減らす"
+                aria-label="グリップ位置を5cm減らす"
               >
                 ←
               </button>
@@ -314,7 +310,7 @@ export default function Analysis() {
                 value={gripPosition}
                 onChange={handleChange}
                 placeholder="50"
-                step="10"
+                step="5"
                 min="0"
                 required
                 className="grip-position-input"
@@ -323,7 +319,7 @@ export default function Analysis() {
                 type="button"
                 className="grip-position-button"
                 onClick={() => adjustGripPosition('increment')}
-                aria-label="グリップ位置を10cm増やす"
+                aria-label="グリップ位置を5cm増やす"
               >
                 →
               </button>
@@ -338,7 +334,7 @@ export default function Analysis() {
                 type="button"
                 className="takeoff-offset-button"
                 onClick={() => adjustTakeoffOffset('decrement')}
-                aria-label="踏切位置のズレを10cm減らす（オーバー）"
+                aria-label="踏切位置を0.05m減らす"
               >
                 ←
               </button>
@@ -348,8 +344,10 @@ export default function Analysis() {
                 name="takeoffOffset"
                 value={takeoffOffset}
                 onChange={handleChange}
-                placeholder="0"
-                step="10"
+                placeholder="3.30"
+                step="0.05"
+                min="3.0"
+                max="4.1"
                 required
                 className="takeoff-offset-input"
               />
@@ -357,7 +355,7 @@ export default function Analysis() {
                 type="button"
                 className="takeoff-offset-button"
                 onClick={() => adjustTakeoffOffset('increment')}
-                aria-label="踏切位置のズレを10cm増やす（届いていない）"
+                aria-label="踏切位置を0.05m増やす"
               >
                 →
               </button>

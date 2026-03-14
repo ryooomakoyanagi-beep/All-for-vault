@@ -101,7 +101,7 @@ export default async function handler(req, res) {
       poleLength,      // 使用ポール長 (ft)
       poleWeight,      // 使用ポール硬さ (lbs)
       gripPosition,    // グリップ位置 (cm)
-      takeoffOffset,   // 踏切位置のズレ (m)
+      takeoffOffset,   // 踏切位置 (m) ※旧形式のオフセット入力も互換対応
       midMark,         // 6歩前中間マーク (m)
       poleBend,        // 湾曲（ポールのしなり具合）
       landingPoint,    // 着地点
@@ -114,7 +114,7 @@ export default async function handler(req, res) {
     console.log('Pole Length (ft):', poleLength)
     console.log('Pole Weight (lbs):', poleWeight)
     console.log('Grip Position (cm):', gripPosition)
-    console.log('Takeoff Offset (m):', takeoffOffset)
+    console.log('Takeoff Position Input (m):', takeoffOffset)
     console.log('Mid Mark (m):', midMark)
     console.log('Pole Bend:', poleBend)
     console.log('Landing Point:', landingPoint)
@@ -128,7 +128,7 @@ export default async function handler(req, res) {
       poleLength: '使用ポール長',
       poleWeight: '使用ポール硬さ',
       gripPosition: 'グリップ位置',
-      takeoffOffset: '踏切位置のズレ',
+      takeoffOffset: '踏切位置',
       midMark: '6歩前中間マーク',
       poleBend: '湾曲',
       landingPoint: '着地点',
@@ -306,32 +306,34 @@ export default async function handler(req, res) {
     // Calculate physical takeoff point and recommend mid mark
     console.log('=== Takeoff and Mid Mark Analysis ===')
     
-    // Parse takeoffOffset (handle +/- signs in string)
-    let takeoffOffsetNum = 0
-    if (typeof takeoffOffset === 'string') {
-      // Remove spaces and parse
-      const cleaned = takeoffOffset.trim().replace(/\s+/g, '')
-      takeoffOffsetNum = parseFloat(cleaned)
-    } else {
-      takeoffOffsetNum = parseFloat(takeoffOffset)
-    }
-    
-    if (isNaN(takeoffOffsetNum)) {
+    // Parse takeoff position input.
+    // New format: physical takeoff position in meters (e.g. 3.30).
+    // Legacy format is still accepted: signed offset (e.g. +0.10 / -0.10).
+    const cleanedTakeoffInput = String(takeoffOffset).trim().replace(/\s+/g, '')
+    const parsedTakeoffInput = parseFloat(cleanedTakeoffInput)
+
+    if (isNaN(parsedTakeoffInput)) {
       return res.status(400).json({
-        error: '踏切位置のズレの値が無効です',
+        error: '踏切位置の値が無効です',
         details: {
           takeoffOffset: takeoffOffset
         }
       })
     }
 
-    // Calculate physical takeoff point: takeoff_physical = 3.30 + takeoffOffset
-    let takeoffPhysical = 3.30 + takeoffOffsetNum
-    
+    let takeoffPhysical = parsedTakeoffInput
+    // Legacy signed offset (from 3.30m) compatibility
+    if (/^[+-]/.test(cleanedTakeoffInput) && Math.abs(parsedTakeoffInput) <= 1.5) {
+      takeoffPhysical = 3.30 + parsedTakeoffInput
+    }
+
     // Constrain to between 3.00 and 4.10 meters
     takeoffPhysical = Math.max(3.00, Math.min(4.10, takeoffPhysical))
+    // Use offset internally for existing adjustment logic
+    const takeoffOffsetNum = takeoffPhysical - 3.30
     
-    console.log('Takeoff Offset (m):', takeoffOffsetNum)
+    console.log('Takeoff Position (m):', takeoffPhysical.toFixed(2))
+    console.log('Computed Takeoff Offset from 3.30m (m):', takeoffOffsetNum.toFixed(2))
     console.log('Physical Takeoff Point (m):', takeoffPhysical.toFixed(2))
     
     // Convert takeoff_physical to cm for comparison with CSV (Takeoff_cm)
