@@ -125,10 +125,10 @@ export default function Analysis() {
     setTakeoffOffset(clamped.toFixed(2))
   }
 
-  // Handle pole weight increment/decrement (10lbs steps, base: 150lbs)
+  // Handle pole weight increment/decrement (5lbs steps, base: 150lbs)
   const adjustPoleWeight = (direction) => {
     const current = parseFloat(poleWeight) || 150
-    const step = direction === 'increment' ? 10 : -10
+    const step = direction === 'increment' ? 5 : -5
     const newValue = current + step
     
     // Ensure value doesn't go below 0
@@ -261,7 +261,7 @@ export default function Analysis() {
                 type="button"
                 className="pole-weight-button"
                 onClick={() => adjustPoleWeight('decrement')}
-                aria-label="ポール硬さを10lbs減らす"
+                aria-label="ポール硬さを5lbs減らす"
               >
                 ←
               </button>
@@ -272,7 +272,7 @@ export default function Analysis() {
                 value={poleWeight}
                 onChange={handleChange}
                 placeholder="150"
-                step="10"
+                step="5"
                 min="0"
                 required
                 className="pole-weight-input"
@@ -281,7 +281,7 @@ export default function Analysis() {
                 type="button"
                 className="pole-weight-button"
                 onClick={() => adjustPoleWeight('increment')}
-                aria-label="ポール硬さを10lbs増やす"
+                aria-label="ポール硬さを5lbs増やす"
               >
                 →
               </button>
